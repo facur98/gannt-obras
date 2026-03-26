@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gantt Obras — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  /* ── RESET & BASE ─────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #eef1f7;
+    --bg2:       #e4e8f2;
+    --glass:     rgba(255,255,255,0.55);
+    --glass-b:   rgba(255,255,255,0.85);
+    --border:    rgba(255,255,255,0.75);
+    --shadow:    0 8px 32px rgba(100,120,180,0.13);
+    --shadow-lg: 0 16px 48px rgba(80,100,160,0.18);
+    --text:      #1a1f36;
+    --text2:     #5a6282;
+    --accent:    #4f6ef7;
+    --accent2:   #7c3aed;
+    --danger:    #ef4444;
+    --success:   #22c55e;
+    --radius:    16px;
+    --radius-sm: 10px;
+    --font:      'DM Sans', sans-serif;
+    --font-h:    'Syne', sans-serif;
+    --cell-w:    52px;
+    --row-h:     44px;
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* subtle mesh background */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 60% 50% at 15% 20%, rgba(150,180,255,0.22) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 60% at 85% 80%, rgba(180,150,255,0.18) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 40% at 50% 50%, rgba(200,220,255,0.10) 0%, transparent 80%);
+    pointer-events: none;
+  }
+
+  /* ── LIQUID GLASS MIXIN ───────────────────────────────────────── */
+  .glass {
+    background: var(--glass);
+    backdrop-filter: blur(18px) saturate(1.6);
+    -webkit-backdrop-filter: blur(18px) saturate(1.6);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+  }
+  .glass-solid {
+    background: var(--glass-b);
+    backdrop-filter: blur(24px) saturate(1.8);
+    -webkit-backdrop-filter: blur(24px) saturate(1.8);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+  }
+
+  /* ── LIQUID GLASS BUTTON ──────────────────────────────────────── */
+  .btn {
+    position: relative; display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; border-radius: 50px; border: none; cursor: pointer;
+    font-family: var(--font); font-size: 13px; font-weight: 500;
+    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(12px) saturate(1.5);
+    -webkit-backdrop-filter: blur(12px) saturate(1.5);
+    border: 1px solid rgba(255,255,255,0.80);
+    box-shadow: 0 2px 12px rgba(100,120,200,0.12), inset 0 1px 0 rgba(255,255,255,0.9);
+    color: var(--text);
+    transition: all .2s ease;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .btn::before {
+    content:''; position:absolute; inset:0; border-radius:inherit;
+    background: linear-gradient(135deg, rgba(255,255,255,0.6) 0%, transparent 60%);
+    pointer-events:none;
+  }
+  .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(79,110,247,0.22), inset 0 1px 0 rgba(255,255,255,0.95);
+    background: rgba(255,255,255,0.75);
+  }
+  .btn:active { transform: translateY(0); }
+
+  .btn-primary {
+    background: linear-gradient(135deg, rgba(79,110,247,0.85), rgba(124,58,237,0.80));
+    color: #fff;
+    border-color: rgba(255,255,255,0.35);
+    box-shadow: 0 4px 20px rgba(79,110,247,0.35), inset 0 1px 0 rgba(255,255,255,0.3);
+  }
+  .btn-primary:hover { background: linear-gradient(135deg,rgba(79,110,247,1),rgba(124,58,237,0.95)); }
+
+  .btn-danger {
+    background: linear-gradient(135deg, rgba(239,68,68,0.80), rgba(220,38,38,0.75));
+    color: #fff;
+    border-color: rgba(255,255,255,0.30);
+    box-shadow: 0 4px 20px rgba(239,68,68,0.25), inset 0 1px 0 rgba(255,255,255,0.2);
+  }
+  .btn-danger:hover { background: linear-gradient(135deg,rgba(239,68,68,1),rgba(220,38,38,1)); }
+
+  .btn-sm { padding: 6px 13px; font-size: 12px; }
+  .btn-icon { padding: 8px 10px; }
+
+  /* ── SIDEBAR ──────────────────────────────────────────────────── */
+  #sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; width: 220px; z-index: 100;
+    padding: 24px 16px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .logo {
+    font-family: var(--font-h); font-size: 20px; font-weight: 800;
+    color: var(--text); letter-spacing: -0.5px;
+    padding: 8px 12px 20px;
+    border-bottom: 1px solid rgba(100,120,180,0.15);
+    margin-bottom: 8px;
+  }
+  .logo span { color: var(--accent); }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-radius: var(--radius-sm);
+    cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--text2);
+    transition: all .18s ease; border: 1px solid transparent;
+    user-select: none;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.55); color: var(--text); border-color: rgba(255,255,255,0.7); }
+  .nav-item.active {
+    background: rgba(255,255,255,0.75); color: var(--accent);
+    border-color: rgba(79,110,247,0.25);
+    box-shadow: 0 2px 10px rgba(79,110,247,0.1);
+  }
+  .nav-item svg { flex-shrink:0; opacity:.7; }
+  .nav-item.active svg { opacity:1; }
+
+  .sync-status {
+    margin-top: auto;
+    padding: 10px 14px; border-radius: var(--radius-sm);
+    background: rgba(255,255,255,0.4);
+    border: 1px solid rgba(255,255,255,0.6);
+    font-size: 11.5px; color: var(--text2);
+    display: flex; align-items: center; gap: 7px;
+  }
+  .sync-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--success); flex-shrink:0;
+    box-shadow: 0 0 6px var(--success);
+    animation: pulse 2s infinite;
+  }
+  .sync-dot.error { background: var(--danger); box-shadow: 0 0 6px var(--danger); animation:none; }
+  .sync-dot.loading { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+  /* ── MAIN ─────────────────────────────────────────────────────── */
+  #main {
+    margin-left: 220px;
+    padding: 24px 28px;
+    position: relative; z-index: 1;
+    min-height: 100vh;
+  }
+
+  /* ── PAGE HEADER ──────────────────────────────────────────────── */
+  .page-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+  }
+  .page-title { font-family: var(--font-h); font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+  .page-title small { display:block; font-family:var(--font); font-size:13px; font-weight:400; color:var(--text2); margin-top:2px; }
+  .page-actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+
+  /* ── SECTION ──────────────────────────────────────────────────── */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* ── GANTT ────────────────────────────────────────────────────── */
+  #gantt-container {
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid rgba(255,255,255,0.75);
+  }
+
+  /* toolbar row */
+  .gantt-toolbar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 14px 18px;
+    background: var(--glass-b);
+    border-bottom: 1px solid rgba(200,210,240,0.4);
+  }
+  .gantt-toolbar label { font-size:12.5px; color:var(--text2); font-weight:500; }
+  .gantt-toolbar select, .gantt-toolbar input[type=date] {
+    padding: 6px 12px; border-radius: 50px; border: 1px solid rgba(200,210,240,0.7);
+    background: rgba(255,255,255,0.7); font-family:var(--font); font-size:13px;
+    color: var(--text); outline:none; cursor:pointer;
+    transition: border-color .15s;
+  }
+  .gantt-toolbar select:focus, .gantt-toolbar input[type=date]:focus { border-color: var(--accent); }
+  .spacer { flex:1; }
+
+  /* scroll wrapper */
+  .gantt-scroll-outer {
+    overflow: auto;
+    max-height: calc(100vh - 230px);
+    background: rgba(240,244,255,0.5);
+    position: relative;
+  }
+
+  table.gantt {
+    border-collapse: separate; border-spacing: 0;
+    min-width: 100%;
+    font-size: 12.5px;
+  }
+
+  /* sticky header */
+  table.gantt thead th {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(230,235,252,0.92);
+    backdrop-filter: blur(8px);
+    padding: 0; border-bottom: 2px solid rgba(150,170,240,0.3);
+    white-space: nowrap;
+  }
+  .th-month {
+    text-align:center; font-weight:700; font-size:11px; text-transform:uppercase;
+    letter-spacing:.8px; color: var(--accent); padding:6px 0 3px;
+    border-right: 2px solid rgba(150,170,240,0.25);
+  }
+  .th-day {
+    text-align:center; width:var(--cell-w); min-width:var(--cell-w); max-width:var(--cell-w);
+    padding:3px 2px 6px;
+    font-weight:600; font-size:11px; color:var(--text2);
+    border-right: 1px solid rgba(200,210,240,0.3);
+  }
+  .th-day.weekend { color: #9ca3af; }
+  .th-day.today-col { color: var(--accent); font-weight:800; }
+  .th-label { width:160px; min-width:160px; position:sticky; left:0; z-index:25; background:rgba(230,235,252,0.95); border-right:2px solid rgba(150,170,240,0.3); padding:6px 12px; }
+
+  /* rows */
+  table.gantt tbody tr { transition: background .12s; }
+  table.gantt tbody tr:hover > td { background: rgba(200,215,255,0.18) !important; }
+
+  .td-label {
+    position: sticky; left:0; z-index:10;
+    background: rgba(240,244,255,0.88);
+    backdrop-filter: blur(8px);
+    border-right: 2px solid rgba(150,170,240,0.3);
+    border-bottom: 1px solid rgba(200,210,240,0.25);
+    padding: 0 12px;
+    height: var(--row-h); min-height:var(--row-h);
+    font-weight: 500; white-space:nowrap;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .td-label .label-dot {
+    width:10px; height:10px; border-radius:50%; flex-shrink:0;
+  }
+  .label-client { font-size:10px; color:var(--text2); margin-left:auto; padding-right:4px; }
+
+  td.gantt-cell {
+    width:var(--cell-w); min-width:var(--cell-w); max-width:var(--cell-w);
+    height:var(--row-h); padding:3px;
+    border-right: 1px solid rgba(200,210,240,0.22);
+    border-bottom: 1px solid rgba(200,210,240,0.22);
+    vertical-align:middle; text-align:center;
+    cursor: pointer; transition: background .1s;
+    position: relative;
+  }
+  td.gantt-cell:hover { background: rgba(79,110,247,0.08) !important; }
+  td.gantt-cell.weekend { background: rgba(200,210,240,0.08); }
+  td.gantt-cell.today-col { background: rgba(79,110,247,0.06) !important; border-right-color: rgba(79,110,247,0.35); }
+  td.gantt-cell.today-col::after { content:''; position:absolute; inset:0; border:1.5px solid rgba(79,110,247,0.2); pointer-events:none; }
+
+  .assignment-chip {
+    display:inline-block;
+    width:calc(100% - 4px); border-radius:6px;
+    padding:3px 4px; font-size:10px; font-weight:600;
+    color:#fff; text-shadow:0 1px 2px rgba(0,0,0,0.25);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    max-width:100%;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    line-height:1.3;
+  }
+
+  /* ── CONTEXT MENU ─────────────────────────────────────────────── */
+  #ctx-menu {
+    position: fixed; z-index: 9999;
+    min-width: 200px;
+    padding: 6px;
+    border-radius: var(--radius-sm);
+    display: none;
+  }
+  #ctx-menu.open { display:block; animation: fadeIn .12s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:scale(.97)} to{opacity:1;transform:scale(1)} }
+  .ctx-item {
+    padding: 8px 14px; border-radius: 7px; cursor:pointer;
+    font-size: 13px; display:flex; align-items:center; gap:8px;
+    transition: background .12s; color:var(--text);
+  }
+  .ctx-item:hover { background: rgba(79,110,247,0.12); }
+  .ctx-item.danger { color: var(--danger); }
+  .ctx-item.danger:hover { background: rgba(239,68,68,0.1); }
+  .ctx-sep { height:1px; background:rgba(150,170,240,0.3); margin:4px 0; }
+  .ctx-title { padding:6px 14px 4px; font-size:11px; font-weight:600; color:var(--text2); text-transform:uppercase; letter-spacing:.6px; }
+
+  /* ── CARDS GRID ───────────────────────────────────────────────── */
+  .cards-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px; margin-top: 4px;
+  }
+  .card {
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    cursor: pointer; transition: all .2s;
+    position: relative; overflow: hidden;
+  }
+  .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+  .card-color-bar {
+    position:absolute; top:0; left:0; right:0; height:4px; border-radius:var(--radius) var(--radius) 0 0;
+  }
+  .card-icon { font-size:22px; margin-bottom:10px; }
+  .card-name { font-family:var(--font-h); font-size:16px; font-weight:700; margin-bottom:4px; }
+  .card-sub { font-size:12px; color:var(--text2); }
+  .card-actions { display:flex; gap:6px; margin-top:14px; }
+  .card-badge {
+    position:absolute; top:14px; right:14px;
+    padding:3px 10px; border-radius:50px; font-size:11px; font-weight:600;
+    background:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.8);
+    color:var(--text2);
+  }
+
+  /* color picker for clients */
+  .color-swatch {
+    width:28px; height:28px; border-radius:50%; cursor:pointer;
+    border:2px solid rgba(255,255,255,0.8);
+    box-shadow:0 2px 8px rgba(0,0,0,0.15);
+    transition:transform .15s;
+  }
+  .color-swatch:hover { transform:scale(1.15); }
+  .color-swatch.selected { border-color: var(--accent); box-shadow:0 0 0 3px rgba(79,110,247,0.3); }
+
+  /* ── MODAL ────────────────────────────────────────────────────── */
+  .modal-overlay {
+    position:fixed; inset:0; z-index:1000;
+    background:rgba(10,15,40,0.35);
+    backdrop-filter:blur(6px);
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; pointer-events:none; transition:opacity .2s;
+  }
+  .modal-overlay.open { opacity:1; pointer-events:all; }
+  .modal {
+    width:min(480px,90vw); border-radius: 20px; padding:28px;
+    transform:translateY(20px) scale(.97); transition:transform .2s;
+  }
+  .modal-overlay.open .modal { transform:translateY(0) scale(1); }
+  .modal-title { font-family:var(--font-h); font-size:20px; font-weight:800; margin-bottom:20px; }
+  .form-group { margin-bottom:16px; }
+  .form-group label { display:block; font-size:12.5px; font-weight:600; color:var(--text2); margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px; }
+  .form-group input, .form-group select {
+    width:100%; padding:10px 14px; border-radius:var(--radius-sm);
+    border:1.5px solid rgba(200,210,240,0.6);
+    background:rgba(255,255,255,0.7); font-family:var(--font); font-size:14px;
+    color:var(--text); outline:none; transition:border-color .15s;
+  }
+  .form-group input:focus, .form-group select:focus { border-color:var(--accent); background:rgba(255,255,255,0.9); }
+  .form-row { display:flex; gap:12px; }
+  .form-row .form-group { flex:1; }
+  .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+  .color-picker-row { display:flex; gap:10px; flex-wrap:wrap; margin-top:4px; }
+
+  /* ── TOAST ────────────────────────────────────────────────────── */
+  #toast-container {
+    position:fixed; bottom:24px; right:24px; z-index:9999;
+    display:flex; flex-direction:column; gap:10px; pointer-events:none;
+  }
+  .toast {
+    padding:12px 18px; border-radius:var(--radius-sm); min-width:200px;
+    font-size:13.5px; font-weight:500; pointer-events:all;
+    animation:slideInRight .25s ease; display:flex; align-items:center; gap:10px;
+  }
+  .toast.success { background:rgba(34,197,94,0.9); color:#fff; }
+  .toast.error   { background:rgba(239,68,68,0.9);  color:#fff; }
+  .toast.info    { background:rgba(79,110,247,0.9);  color:#fff; }
+  @keyframes slideInRight { from{transform:translateX(40px);opacity:0} to{transform:translateX(0);opacity:1} }
+
+  /* ── EMPTY STATE ──────────────────────────────────────────────── */
+  .empty-state {
+    text-align:center; padding:60px 20px; color:var(--text2);
+  }
+  .empty-state .empty-icon { font-size:48px; margin-bottom:16px; opacity:.4; }
+  .empty-state p { font-size:14px; margin-bottom:20px; }
+
+  /* ── CONFIG BANNER ────────────────────────────────────────────── */
+  #config-banner {
+    padding:14px 20px; border-radius:var(--radius); margin-bottom:20px;
+    background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.4);
+    display:flex; align-items:center; gap:12px; font-size:13.5px;
+  }
+  #config-banner.hidden { display:none; }
+  #config-banner a { color:var(--accent); font-weight:600; cursor:pointer; text-decoration:underline; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width:7px; height:7px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:rgba(120,140,200,0.35); border-radius:10px; }
+  ::-webkit-scrollbar-thumb:hover { background:rgba(120,140,200,0.55); }
+
+  /* ── RESPONSIVE ───────────────────────────────────────────────── */
+  @media (max-width:700px) {
+    #sidebar { width:60px; padding:16px 8px; }
+    .logo, .nav-item span, .sync-status span { display:none; }
+    #main { margin-left:60px; padding:16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── SIDEBAR ─────────────────────────────────────────────────── -->
+<nav id="sidebar" class="glass-solid">
+  <div class="logo">Obras<span>.</span></div>
+
+  <div class="nav-item active" data-section="gantt" onclick="showSection('gantt')">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="13" y2="18"/></svg>
+    <span>Gantt</span>
+  </div>
+
+  <div class="nav-item" data-section="cuadrillas" onclick="showSection('cuadrillas')">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span>Cuadrillas</span>
+  </div>
+
+  <div class="nav-item" data-section="sitios" onclick="showSection('sitios')">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    <span>Sitios</span>
+  </div>
+
+  <div class="nav-item" data-section="clientes" onclick="showSection('clientes')">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+    <span>Clientes</span>
+  </div>
+
+  <div class="nav-item" data-section="config" onclick="showSection('config')">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M5.34 18.66l-1.41 1.41M12 2v2M12 20v2M4.93 4.93l1.41 1.41M18.66 18.66l1.41 1.41M2 12h2M20 12h2"/></svg>
+    <span>Configuración</span>
+  </div>
+
+  <div class="sync-status" id="sync-status">
+    <div class="sync-dot loading" id="sync-dot"></div>
+    <span id="sync-text">Sin conectar</span>
+  </div>
+</nav>
+
+<!-- ── MAIN ────────────────────────────────────────────────────── -->
+<main id="main">
+
+  <!-- Config banner -->
+  <div id="config-banner">
+    ⚠️ <strong>Configuración pendiente:</strong> Ingresá tu URL de Google Apps Script en <a onclick="showSection('config')">Configuración</a> para activar la sincronización con Google Sheets.
+  </div>
+
+  <!-- ═══════════════ GANTT SECTION ═══════════════ -->
+  <div id="section-gantt" class="section active">
+    <div class="page-header">
+      <div class="page-title">
+        Tablero Gantt
+        <small id="gantt-subtitle">Cargando datos…</small>
+      </div>
+      <div class="page-actions">
+        <button class="btn" onclick="goToToday()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Hoy
+        </button>
+        <button class="btn" onclick="refreshAll()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          Sincronizar
+        </button>
+        <button class="btn btn-primary" onclick="openModal('assignment')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Asignar
+        </button>
+      </div>
+    </div>
+
+    <div id="gantt-container" class="glass">
+      <!-- toolbar -->
+      <div class="gantt-toolbar">
+        <label>Filtrar cliente:</label>
+        <select id="filter-client" onchange="renderGantt()">
+          <option value="">Todos</option>
+        </select>
+        <label>Desde:</label>
+        <input type="date" id="filter-date-from" onchange="renderGantt()">
+        <label>Hasta:</label>
+        <input type="date" id="filter-date-to" onchange="renderGantt()">
+        <div class="spacer"></div>
+        <button class="btn btn-sm" onclick="zoomOut()">−</button>
+        <button class="btn btn-sm" onclick="zoomIn()">+</button>
+      </div>
+
+      <!-- gantt table -->
+      <div class="gantt-scroll-outer" id="gantt-scroll">
+        <div id="gantt-loading" style="padding:60px;text-align:center;color:var(--text2)">
+          <div style="font-size:32px;margin-bottom:12px">⏳</div>
+          Configurá el Apps Script para ver el tablero…
+        </div>
+        <table class="gantt" id="gantt-table" style="display:none">
+          <thead id="gantt-thead"></thead>
+          <tbody id="gantt-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ CUADRILLAS SECTION ═══════════════ -->
+  <div id="section-cuadrillas" class="section">
+    <div class="page-header">
+      <div class="page-title">Cuadrillas <small>Equipos de trabajo registrados</small></div>
+      <div class="page-actions">
+        <button class="btn btn-primary" onclick="openModal('cuadrilla')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nueva Cuadrilla
+        </button>
+      </div>
+    </div>
+    <div class="cards-grid" id="cuadrillas-grid"></div>
+  </div>
+
+  <!-- ═══════════════ SITIOS SECTION ═══════════════ -->
+  <div id="section-sitios" class="section">
+    <div class="page-header">
+      <div class="page-title">Sitios <small>Obras y ubicaciones</small></div>
+      <div class="page-actions">
+        <button class="btn btn-primary" onclick="openModal('sitio')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nuevo Sitio
+        </button>
+      </div>
+    </div>
+    <div class="cards-grid" id="sitios-grid"></div>
+  </div>
+
+  <!-- ═══════════════ CLIENTES SECTION ═══════════════ -->
+  <div id="section-clientes" class="section">
+    <div class="page-header">
+      <div class="page-title">Clientes <small>Empresas y organizaciones</small></div>
+      <div class="page-actions">
+        <button class="btn btn-primary" onclick="openModal('cliente')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nuevo Cliente
+        </button>
+      </div>
+    </div>
+    <div class="cards-grid" id="clientes-grid"></div>
+  </div>
+
+  <!-- ═══════════════ CONFIG SECTION ═══════════════ -->
+  <div id="section-config" class="section">
+    <div class="page-header">
+      <div class="page-title">Configuración <small>Conexión con Google Sheets</small></div>
+    </div>
+    <div class="glass-solid" style="border-radius:var(--radius);padding:28px;max-width:560px">
+      <div class="form-group">
+        <label>URL del Web App (Google Apps Script)</label>
+        <input type="text" id="config-url" placeholder="https://script.google.com/macros/s/AKfy.../exec" style="width:100%">
+      </div>
+      <div class="form-group">
+        <label>Intervalo de sincronización automática (segundos)</label>
+        <input type="number" id="config-interval" value="30" min="10" max="300" style="width:100%">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button class="btn btn-primary" onclick="saveConfig()">Guardar y conectar</button>
+        <button class="btn" onclick="testConnection()">Probar conexión</button>
+      </div>
+      <div style="margin-top:24px;padding:16px;background:rgba(79,110,247,0.07);border-radius:var(--radius-sm);border:1px solid rgba(79,110,247,0.2)">
+        <p style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--accent)">📋 Instrucciones de configuración</p>
+        <ol style="font-size:12.5px;color:var(--text2);line-height:1.8;padding-left:16px">
+          <li>Abrí tu Google Sheets y andá a <strong>Extensiones → Apps Script</strong></li>
+          <li>Pegá el código del archivo <code>apps-script.gs</code> que te generé</li>
+          <li>Hacé clic en <strong>Implementar → Nueva implementación</strong></li>
+          <li>Tipo: <strong>Aplicación web</strong> | Acceso: <strong>Cualquier usuario</strong></li>
+          <li>Copiá la URL generada y pegala arriba</li>
+          <li>En tu Sheets, creá las solapas: <strong>CLIENTES, SITIOS, CUADRILLAS, ASIGNACIONES</strong></li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ── CONTEXT MENU ─────────────────────────────────────────────── -->
+<div id="ctx-menu" class="glass-solid">
+  <div class="ctx-title" id="ctx-title">Opciones</div>
+  <div class="ctx-item" id="ctx-assign" onclick="ctxAssign()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+    Asignar cuadrilla
+  </div>
+  <div class="ctx-item" id="ctx-clear" onclick="ctxClear()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    Limpiar celda
+  </div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" onclick="hideCtx()">Cancelar</div>
+</div>
+
+<!-- ── MODALS ───────────────────────────────────────────────────── -->
+
+<!-- Assignment modal -->
+<div class="modal-overlay" id="modal-assignment">
+  <div class="modal glass-solid">
+    <div class="modal-title">Asignar Cuadrilla</div>
+    <div class="form-group">
+      <label>Cuadrilla</label>
+      <select id="assign-cuadrilla"></select>
+    </div>
+    <div class="form-group">
+      <label>Sitio</label>
+      <select id="assign-sitio"></select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Fecha inicio</label>
+        <input type="date" id="assign-from">
+      </div>
+      <div class="form-group">
+        <label>Fecha fin</label>
+        <input type="date" id="assign-to">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('assignment')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAssignment()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Cuadrilla modal -->
+<div class="modal-overlay" id="modal-cuadrilla">
+  <div class="modal glass-solid">
+    <div class="modal-title" id="modal-cuadrilla-title">Nueva Cuadrilla</div>
+    <div class="form-group">
+      <label>ID / Nombre de Cuadrilla</label>
+      <input type="text" id="cuadrilla-name" placeholder="Ej: Tera 1, Vieira…">
+    </div>
+    <input type="hidden" id="cuadrilla-edit-id">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('cuadrilla')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCuadrilla()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Sitio modal -->
+<div class="modal-overlay" id="modal-sitio">
+  <div class="modal glass-solid">
+    <div class="modal-title" id="modal-sitio-title">Nuevo Sitio</div>
+    <div class="form-group">
+      <label>ID / Nombre del Sitio</label>
+      <input type="text" id="sitio-name" placeholder="Ej: Sitio Norte 1…">
+    </div>
+    <div class="form-group">
+      <label>Cliente</label>
+      <select id="sitio-client"></select>
+    </div>
+    <input type="hidden" id="sitio-edit-id">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('sitio')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveSitio()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Cliente modal -->
+<div class="modal-overlay" id="modal-cliente">
+  <div class="modal glass-solid">
+    <div class="modal-title" id="modal-cliente-title">Nuevo Cliente</div>
+    <div class="form-group">
+      <label>Nombre del Cliente</label>
+      <input type="text" id="cliente-name" placeholder="Ej: Nokia, AMX…">
+    </div>
+    <div class="form-group">
+      <label>Color representativo</label>
+      <div class="color-picker-row" id="color-picker-row"></div>
+    </div>
+    <input type="hidden" id="cliente-color" value="#4f6ef7">
+    <input type="hidden" id="cliente-edit-id">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('cliente')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCliente()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete confirm modal -->
+<div class="modal-overlay" id="modal-confirm">
+  <div class="modal glass-solid" style="max-width:380px">
+    <div class="modal-title">¿Confirmar eliminación?</div>
+    <p style="font-size:13.5px;color:var(--text2);margin-bottom:20px" id="confirm-msg">Esta acción no se puede deshacer.</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('confirm')">Cancelar</button>
+      <button class="btn btn-danger" id="confirm-ok-btn">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST ────────────────────────────────────────────────────── -->
+<div id="toast-container"></div>
+
+<!-- ── SCRIPT ───────────────────────────────────────────────────── -->
+<script>
+/* ═══════════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════════ */
+const STATE = {
+  scriptUrl: localStorage.getItem('gantt_script_url') || '',
+  syncInterval: parseInt(localStorage.getItem('gantt_sync_interval') || '30'),
+  clientes: [],     // [{id, color}]
+  sitios: [],       // [{id, clienteId}]
+  cuadrillas: [],   // [{id}]
+  asignaciones: [], // [{cuadrillaId, sitioId, fecha}]  YYYY-MM-DD
+};
+
+// Palette for auto-assigning / picker
+const PALETTE = [
+  '#4f6ef7','#7c3aed','#0ea5e9','#10b981','#f59e0b',
+  '#ef4444','#ec4899','#8b5cf6','#06b6d4','#84cc16',
+  '#f97316','#6366f1','#14b8a6','#a855f7','#eab308',
+];
+
+let syncTimer = null;
+let ctxTarget = null; // {sitioId, fecha}
+let cellW = 52;
+
+/* ═══════════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  // Init config inputs
+  document.getElementById('config-url').value = STATE.scriptUrl;
+  document.getElementById('config-interval').value = STATE.syncInterval;
+
+  // Init date filters
+  const today = todayStr();
+  const inSixMonths = addDays(today, 180);
+  document.getElementById('filter-date-from').value = today;
+  document.getElementById('filter-date-to').value = inSixMonths;
+
+  buildColorPicker();
+
+  if (STATE.scriptUrl) {
+    document.getElementById('config-banner').classList.add('hidden');
+    refreshAll();
+    startAutoSync();
+  }
+
+  // Close ctx on click outside
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#ctx-menu')) hideCtx();
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════════════════════════ */
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('section-' + id).classList.add('active');
+  document.querySelector(`[data-section="${id}"]`).classList.add('active');
+  if (id === 'gantt') renderGantt();
+  if (id === 'cuadrillas') renderCuadrillasGrid();
+  if (id === 'sitios') renderSitiosGrid();
+  if (id === 'clientes') renderClientesGrid();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   API CALLS
+═══════════════════════════════════════════════════════════ */
+async function apiCall(action, data = {}) {
+  if (!STATE.scriptUrl) throw new Error('Sin URL configurada');
+  const params = new URLSearchParams({ action, ...data });
+  const res = await fetch(`${STATE.scriptUrl}?${params}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// Todo via GET para evitar CORS con Apps Script
+async function apiPost(action, payload) {
+  if (!STATE.scriptUrl) throw new Error('Sin URL configurada');
+  // Serializar payload como JSON en un param GET
+  const params = new URLSearchParams({ action, data: JSON.stringify(payload) });
+  const res = await fetch(`${STATE.scriptUrl}?${params}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function refreshAll() {
+  setSyncStatus('loading', 'Sincronizando…');
+  try {
+    const data = await apiCall('getAll');
+    STATE.clientes = data.clientes || [];
+    STATE.sitios = data.sitios || [];
+    STATE.cuadrillas = data.cuadrillas || [];
+    STATE.asignaciones = data.asignaciones || [];
+    setSyncStatus('ok', 'Sincronizado');
+    renderAll();
+    populateFilters();
+  } catch (e) {
+    setSyncStatus('error', 'Error de conexión');
+    console.error(e);
+  }
+}
+
+function startAutoSync() {
+  if (syncTimer) clearInterval(syncTimer);
+  syncTimer = setInterval(refreshAll, STATE.syncInterval * 1000);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER ALL
+═══════════════════════════════════════════════════════════ */
+function renderAll() {
+  renderGantt();
+  renderCuadrillasGrid();
+  renderSitiosGrid();
+  renderClientesGrid();
+  updateSelects();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GANTT
+═══════════════════════════════════════════════════════════ */
+function renderGantt() {
+  const fromVal = document.getElementById('filter-date-from').value;
+  const toVal = document.getElementById('filter-date-to').value;
+  const clientFilter = document.getElementById('filter-client').value;
+
+  if (!fromVal || !toVal) return;
+  const from = new Date(fromVal + 'T00:00:00');
+  const to   = new Date(toVal + 'T00:00:00');
+  if (from > to) return;
+
+  // Build date range
+  const dates = [];
+  for (let d = new Date(from); d <= to; d.setDate(d.getDate()+1)) {
+    dates.push(new Date(d));
+  }
+
+  // Filter sitios
+  let sitiosFilt = STATE.sitios;
+  if (clientFilter) sitiosFilt = sitiosFilt.filter(s => s.clienteId === clientFilter);
+
+  // Subtitle
+  document.getElementById('gantt-subtitle').textContent =
+    `${sitiosFilt.length} sitios · ${dates.length} días`;
+
+  if (STATE.cuadrillas.length === 0 && STATE.sitios.length === 0) {
+    document.getElementById('gantt-loading').style.display = 'block';
+    document.getElementById('gantt-table').style.display = 'none';
+    document.getElementById('gantt-loading').innerHTML =
+      '<div style="font-size:32px;margin-bottom:12px">📋</div>Configurá tu Google Sheets y sincronizá para ver el tablero.';
+    return;
+  }
+
+  document.getElementById('gantt-loading').style.display = 'none';
+  document.getElementById('gantt-table').style.display = '';
+
+  // Update cell width CSS variable
+  document.querySelector(':root').style.setProperty('--cell-w', cellW + 'px');
+
+  const today = todayStr();
+
+  // ── THEAD ──
+  const thead = document.getElementById('gantt-thead');
+  thead.innerHTML = '';
+
+  // Month row
+  const monthRow = document.createElement('tr');
+  const labelTh = document.createElement('th');
+  labelTh.className = 'th-label';
+  labelTh.innerHTML = '<div style="padding:6px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text2)">Sitio / Cuadrilla</div>';
+  monthRow.appendChild(labelTh);
+
+  // Group by month
+  let monthGroups = [];
+  let curMonth = null, curCount = 0;
+  dates.forEach(d => {
+    const m = d.toLocaleDateString('es-AR', { month:'long', year:'numeric' });
+    if (m !== curMonth) {
+      if (curMonth) monthGroups.push({ label: curMonth, count: curCount });
+      curMonth = m; curCount = 1;
+    } else curCount++;
+  });
+  if (curMonth) monthGroups.push({ label: curMonth, count: curCount });
+
+  monthGroups.forEach(({ label, count }) => {
+    const th = document.createElement('th');
+    th.colSpan = count;
+    th.className = 'th-month';
+    th.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+    monthRow.appendChild(th);
+  });
+  thead.appendChild(monthRow);
+
+  // Day row
+  const dayRow = document.createElement('tr');
+  const labelTh2 = document.createElement('th');
+  labelTh2.className = 'th-label';
+  dayRow.appendChild(labelTh2);
+
+  dates.forEach(d => {
+    const th = document.createElement('th');
+    th.className = 'th-day';
+    const ds = fmtDate(d);
+    if ([0,6].includes(d.getDay())) th.classList.add('weekend');
+    if (ds === today) th.classList.add('today-col');
+    const dayNum = d.getDate();
+    const dayName = d.toLocaleDateString('es-AR', { weekday:'narrow' });
+    th.innerHTML = `<div>${dayName}</div><div style="font-size:12px;font-weight:700">${dayNum}</div>`;
+    dayRow.appendChild(th);
+  });
+  thead.appendChild(dayRow);
+
+  // ── TBODY ──
+  const tbody = document.getElementById('gantt-tbody');
+  tbody.innerHTML = '';
+
+  // Rows = cuadrillas × sitios grouped
+  // Layout: per cuadrilla row, cells show which sitio is assigned per day
+  STATE.cuadrillas.forEach(cuad => {
+    const tr = document.createElement('tr');
+
+    // Label cell
+    const tdLabel = document.createElement('td');
+    tdLabel.className = 'td-label';
+    tdLabel.innerHTML = `
+      <div style="width:10px;height:10px;border-radius:50%;background:var(--accent);flex-shrink:0"></div>
+      <span style="font-weight:600;font-size:13px">${escHtml(cuad.id)}</span>
+    `;
+    tr.appendChild(tdLabel);
+
+    // Day cells
+    dates.forEach(d => {
+      const ds = fmtDate(d);
+      const td = document.createElement('td');
+      td.className = 'gantt-cell';
+      if ([0,6].includes(d.getDay())) td.classList.add('weekend');
+      if (ds === today) td.classList.add('today-col');
+      td.dataset.cuadrilla = cuad.id;
+      td.dataset.fecha = ds;
+
+      // Find assignment for this cuadrilla + date
+      const asig = STATE.asignaciones.find(a => a.cuadrillaId === cuad.id && a.fecha === ds);
+      if (asig) {
+        const sitio = STATE.sitios.find(s => s.id === asig.sitioId);
+        const cliente = sitio ? STATE.clientes.find(c => c.id === sitio.clienteId) : null;
+        const color = cliente ? cliente.color : '#6b7280';
+        const chip = document.createElement('div');
+        chip.className = 'assignment-chip';
+        chip.style.background = color;
+        chip.title = `${asig.sitioId}${cliente ? ' — ' + cliente.id : ''}`;
+        chip.textContent = asig.sitioId;
+        td.appendChild(chip);
+      }
+
+      td.addEventListener('contextmenu', e => { e.preventDefault(); showCtx(e, cuad.id, ds, !!asig); });
+      td.addEventListener('click', () => {
+        // Quick assign: open modal with pre-filled cuadrilla + date
+        prefillAssignment(cuad.id, ds);
+        openModal('assignment');
+      });
+
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+
+  // If no cuadrillas yet
+  if (STATE.cuadrillas.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = dates.length + 1;
+    td.style.padding = '40px'; td.style.textAlign = 'center'; td.style.color = 'var(--text2)';
+    td.textContent = 'No hay cuadrillas registradas aún.';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+}
+
+function goToToday() {
+  const today = todayStr();
+  document.getElementById('filter-date-from').value = today;
+  document.getElementById('filter-date-to').value = addDays(today, 180);
+  renderGantt();
+  // Scroll to today column
+  setTimeout(() => {
+    const todayTh = document.querySelector('.th-day.today-col');
+    if (todayTh) todayTh.scrollIntoView({ inline: 'center', behavior: 'smooth' });
+  }, 100);
+}
+
+function zoomIn() {
+  cellW = Math.min(90, cellW + 8);
+  renderGantt();
+}
+function zoomOut() {
+  cellW = Math.max(32, cellW - 8);
+  renderGantt();
+}
+
+function prefillAssignment(cuadrillaId, fecha) {
+  document.getElementById('assign-from').value = fecha;
+  document.getElementById('assign-to').value = fecha;
+  document.getElementById('assign-cuadrilla').value = cuadrillaId;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CONTEXT MENU
+═══════════════════════════════════════════════════════════ */
+function showCtx(e, cuadrillaId, fecha, hasAssignment) {
+  ctxTarget = { cuadrillaId, fecha };
+  const menu = document.getElementById('ctx-menu');
+  document.getElementById('ctx-title').textContent = `${cuadrillaId} — ${fecha}`;
+  document.getElementById('ctx-clear').style.display = hasAssignment ? 'flex' : 'none';
+  menu.classList.add('open');
+  menu.style.left = Math.min(e.clientX, window.innerWidth - 220) + 'px';
+  menu.style.top  = Math.min(e.clientY, window.innerHeight - 160) + 'px';
+}
+function hideCtx() { document.getElementById('ctx-menu').classList.remove('open'); }
+function ctxAssign() {
+  hideCtx();
+  if (!ctxTarget) return;
+  prefillAssignment(ctxTarget.cuadrillaId, ctxTarget.fecha);
+  openModal('assignment');
+}
+async function ctxClear() {
+  hideCtx();
+  if (!ctxTarget) return;
+  const idx = STATE.asignaciones.findIndex(a => a.cuadrillaId === ctxTarget.cuadrillaId && a.fecha === ctxTarget.fecha);
+  if (idx === -1) return;
+  const asig = STATE.asignaciones[idx];
+  try {
+    await apiPost('deleteAsignacion', { cuadrillaId: asig.cuadrillaId, sitioId: asig.sitioId, fecha: asig.fecha });
+    STATE.asignaciones.splice(idx, 1);
+    renderGantt();
+    toast('Asignación eliminada', 'info');
+  } catch(e) { toast('Error al eliminar: ' + e.message, 'error'); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CARDS GRIDS
+═══════════════════════════════════════════════════════════ */
+function renderCuadrillasGrid() {
+  const grid = document.getElementById('cuadrillas-grid');
+  if (!STATE.cuadrillas.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">👷</div><p>No hay cuadrillas registradas</p><button class="btn btn-primary" onclick="openModal('cuadrilla')">Agregar primera cuadrilla</button></div>`;
+    return;
+  }
+  grid.innerHTML = STATE.cuadrillas.map(c => {
+    const asigCount = STATE.asignaciones.filter(a => a.cuadrillaId === c.id).length;
+    return `
+    <div class="card glass" data-id="${escHtml(c.id)}">
+      <div class="card-color-bar" style="background:var(--accent)"></div>
+      <div class="card-icon">👷</div>
+      <div class="card-name">${escHtml(c.id)}</div>
+      <div class="card-sub">${asigCount} asignacion${asigCount !== 1 ? 'es' : ''}</div>
+      <div class="card-actions">
+        <button class="btn btn-sm" onclick="editCuadrilla('${escHtml(c.id)}')">Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmDelete('cuadrilla','${escHtml(c.id)}')">Eliminar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderSitiosGrid() {
+  const grid = document.getElementById('sitios-grid');
+  if (!STATE.sitios.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📍</div><p>No hay sitios registrados</p><button class="btn btn-primary" onclick="openModal('sitio')">Agregar primer sitio</button></div>`;
+    return;
+  }
+  grid.innerHTML = STATE.sitios.map(s => {
+    const cliente = STATE.clientes.find(c => c.id === s.clienteId);
+    const color = cliente ? cliente.color : '#9ca3af';
+    return `
+    <div class="card glass" data-id="${escHtml(s.id)}">
+      <div class="card-color-bar" style="background:${color}"></div>
+      <div class="card-icon">📍</div>
+      <div class="card-name">${escHtml(s.id)}</div>
+      <div class="card-sub" style="display:flex;align-items:center;gap:6px">
+        <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
+        ${cliente ? escHtml(cliente.id) : '<em>Sin cliente</em>'}
+      </div>
+      <div class="card-actions">
+        <button class="btn btn-sm" onclick="editSitio('${escHtml(s.id)}')">Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmDelete('sitio','${escHtml(s.id)}')">Eliminar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderClientesGrid() {
+  const grid = document.getElementById('clientes-grid');
+  if (!STATE.clientes.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🏢</div><p>No hay clientes registrados</p><button class="btn btn-primary" onclick="openModal('cliente')">Agregar primer cliente</button></div>`;
+    return;
+  }
+  grid.innerHTML = STATE.clientes.map(c => {
+    const sitiosCount = STATE.sitios.filter(s => s.clienteId === c.id).length;
+    return `
+    <div class="card glass" data-id="${escHtml(c.id)}">
+      <div class="card-color-bar" style="background:${c.color}"></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="width:36px;height:36px;border-radius:10px;background:${c.color};opacity:.9"></div>
+        <div>
+          <div class="card-name" style="margin-bottom:0">${escHtml(c.id)}</div>
+          <div class="card-sub">${sitiosCount} sitio${sitiosCount !== 1?'s':''}</div>
+        </div>
+      </div>
+      <div class="card-actions">
+        <button class="btn btn-sm" onclick="editCliente('${escHtml(c.id)}')">Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmDelete('cliente','${escHtml(c.id)}')">Eliminar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MODALS
+═══════════════════════════════════════════════════════════ */
+function openModal(id) {
+  if (id === 'assignment') updateSelects();
+  if (id === 'sitio') updateClienteSelect();
+  document.getElementById('modal-' + id).classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById('modal-' + id).classList.remove('open');
+  // Reset fields
+  if (id === 'cuadrilla') { document.getElementById('cuadrilla-name').value=''; document.getElementById('cuadrilla-edit-id').value=''; document.getElementById('modal-cuadrilla-title').textContent='Nueva Cuadrilla'; }
+  if (id === 'sitio')     { document.getElementById('sitio-name').value=''; document.getElementById('sitio-edit-id').value=''; document.getElementById('modal-sitio-title').textContent='Nuevo Sitio'; }
+  if (id === 'cliente')   { document.getElementById('cliente-name').value=''; document.getElementById('cliente-edit-id').value=''; document.getElementById('modal-cliente-title').textContent='Nuevo Cliente'; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SAVE ACTIONS
+═══════════════════════════════════════════════════════════ */
+async function saveAssignment() {
+  const cuadrillaId = document.getElementById('assign-cuadrilla').value;
+  const sitioId = document.getElementById('assign-sitio').value;
+  const from = document.getElementById('assign-from').value;
+  const to   = document.getElementById('assign-to').value;
+  if (!cuadrillaId || !sitioId || !from || !to) { toast('Completá todos los campos', 'error'); return; }
+  if (from > to) { toast('Fecha inicio debe ser ≤ fecha fin', 'error'); return; }
+
+  // Build date range
+  const dates = [];
+  for (let d = new Date(from+'T00:00:00'); fmtDate(d) <= to; d.setDate(d.getDate()+1)) dates.push(fmtDate(new Date(d)));
+
+  try {
+    const result = await apiPost('setAsignaciones', { cuadrillaId, sitioId, fechas: dates });
+    if (result.ok) {
+      // Update local state
+      dates.forEach(fecha => {
+        const idx = STATE.asignaciones.findIndex(a => a.cuadrillaId === cuadrillaId && a.fecha === fecha);
+        if (idx > -1) STATE.asignaciones[idx] = { cuadrillaId, sitioId, fecha };
+        else STATE.asignaciones.push({ cuadrillaId, sitioId, fecha });
+      });
+      closeModal('assignment');
+      renderGantt();
+      toast(`${dates.length} día${dates.length>1?'s':''} asignados ✓`, 'success');
+    } else throw new Error(result.error);
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function saveCuadrilla() {
+  const name = document.getElementById('cuadrilla-name').value.trim();
+  const editId = document.getElementById('cuadrilla-edit-id').value;
+  if (!name) { toast('Ingresá un nombre', 'error'); return; }
+  try {
+    const result = await apiPost('saveCuadrilla', { id: name, oldId: editId });
+    if (result.ok) {
+      if (editId) {
+        const i = STATE.cuadrillas.findIndex(c => c.id === editId);
+        if (i>-1) STATE.cuadrillas[i].id = name;
+      } else {
+        if (STATE.cuadrillas.find(c => c.id === name)) { toast('Ya existe esa cuadrilla', 'error'); return; }
+        STATE.cuadrillas.push({ id: name });
+      }
+      closeModal('cuadrilla');
+      renderCuadrillasGrid();
+      updateSelects();
+      toast('Cuadrilla guardada ✓', 'success');
+    } else throw new Error(result.error);
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function saveSitio() {
+  const name = document.getElementById('sitio-name').value.trim();
+  const clienteId = document.getElementById('sitio-client').value;
+  const editId = document.getElementById('sitio-edit-id').value;
+  if (!name) { toast('Ingresá un nombre', 'error'); return; }
+  try {
+    const result = await apiPost('saveSitio', { id: name, clienteId, oldId: editId });
+    if (result.ok) {
+      if (editId) {
+        const i = STATE.sitios.findIndex(s => s.id === editId);
+        if (i>-1) { STATE.sitios[i].id = name; STATE.sitios[i].clienteId = clienteId; }
+      } else {
+        if (STATE.sitios.find(s => s.id === name)) { toast('Ya existe ese sitio', 'error'); return; }
+        STATE.sitios.push({ id: name, clienteId });
+      }
+      closeModal('sitio');
+      renderSitiosGrid();
+      updateSelects();
+      toast('Sitio guardado ✓', 'success');
+    } else throw new Error(result.error);
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function saveCliente() {
+  const name = document.getElementById('cliente-name').value.trim();
+  const color = document.getElementById('cliente-color').value;
+  const editId = document.getElementById('cliente-edit-id').value;
+  if (!name) { toast('Ingresá un nombre', 'error'); return; }
+  try {
+    const result = await apiPost('saveCliente', { id: name, color, oldId: editId });
+    if (result.ok) {
+      if (editId) {
+        const i = STATE.clientes.findIndex(c => c.id === editId);
+        if (i>-1) { STATE.clientes[i].id = name; STATE.clientes[i].color = color; }
+      } else {
+        if (STATE.clientes.find(c => c.id === name)) { toast('Ya existe ese cliente', 'error'); return; }
+        STATE.clientes.push({ id: name, color });
+      }
+      closeModal('cliente');
+      renderClientesGrid();
+      populateFilters();
+      toast('Cliente guardado ✓', 'success');
+    } else throw new Error(result.error);
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EDIT + DELETE
+═══════════════════════════════════════════════════════════ */
+function editCuadrilla(id) {
+  document.getElementById('cuadrilla-name').value = id;
+  document.getElementById('cuadrilla-edit-id').value = id;
+  document.getElementById('modal-cuadrilla-title').textContent = 'Editar Cuadrilla';
+  openModal('cuadrilla');
+}
+function editSitio(id) {
+  const sitio = STATE.sitios.find(s => s.id === id);
+  if (!sitio) return;
+  document.getElementById('sitio-name').value = id;
+  document.getElementById('sitio-edit-id').value = id;
+  document.getElementById('modal-sitio-title').textContent = 'Editar Sitio';
+  updateClienteSelect();
+  openModal('sitio');
+  setTimeout(() => { document.getElementById('sitio-client').value = sitio.clienteId || ''; }, 50);
+}
+function editCliente(id) {
+  const c = STATE.clientes.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('cliente-name').value = id;
+  document.getElementById('cliente-edit-id').value = id;
+  document.getElementById('cliente-color').value = c.color;
+  document.getElementById('modal-cliente-title').textContent = 'Editar Cliente';
+  buildColorPicker(c.color);
+  openModal('cliente');
+}
+
+let _pendingDelete = null;
+function confirmDelete(type, id) {
+  _pendingDelete = { type, id };
+  document.getElementById('confirm-msg').textContent = `¿Eliminar "${id}"? Esta acción no se puede deshacer.`;
+  document.getElementById('confirm-ok-btn').onclick = executeDelete;
+  openModal('confirm');
+}
+async function executeDelete() {
+  if (!_pendingDelete) return;
+  const { type, id } = _pendingDelete;
+  try {
+    const result = await apiPost('delete' + type.charAt(0).toUpperCase() + type.slice(1), { id });
+    if (result.ok) {
+      if (type === 'cuadrilla') STATE.cuadrillas = STATE.cuadrillas.filter(c => c.id !== id);
+      if (type === 'sitio')     STATE.sitios     = STATE.sitios.filter(s => s.id !== id);
+      if (type === 'cliente')   STATE.clientes   = STATE.clientes.filter(c => c.id !== id);
+      closeModal('confirm');
+      renderAll();
+      toast('Eliminado ✓', 'info');
+    } else throw new Error(result.error);
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CONFIG
+═══════════════════════════════════════════════════════════ */
+function saveConfig() {
+  const url = document.getElementById('config-url').value.trim();
+  const interval = parseInt(document.getElementById('config-interval').value);
+  if (!url) { toast('Ingresá la URL del Apps Script', 'error'); return; }
+  STATE.scriptUrl = url;
+  STATE.syncInterval = interval || 30;
+  localStorage.setItem('gantt_script_url', url);
+  localStorage.setItem('gantt_sync_interval', STATE.syncInterval);
+  document.getElementById('config-banner').classList.add('hidden');
+  startAutoSync();
+  refreshAll();
+  toast('Configuración guardada ✓ Conectando…', 'success');
+}
+
+async function testConnection() {
+  const url = document.getElementById('config-url').value.trim();
+  if (!url) { toast('Ingresá la URL primero', 'error'); return; }
+  try {
+    setSyncStatus('loading', 'Probando…');
+    const res = await fetch(`${url}?action=ping`);
+    const data = await res.json();
+    if (data.ok) {
+      setSyncStatus('ok', 'Conectado');
+      toast('Conexión exitosa ✓', 'success');
+    } else throw new Error(data.error || 'Respuesta inesperada');
+  } catch(e) {
+    setSyncStatus('error', 'Error');
+    toast('Error de conexión: ' + e.message, 'error');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HELPERS UI
+═══════════════════════════════════════════════════════════ */
+function setSyncStatus(state, text) {
+  const dot  = document.getElementById('sync-dot');
+  const span = document.getElementById('sync-text');
+  dot.className = 'sync-dot' + (state === 'error' ? ' error' : state === 'loading' ? ' loading' : '');
+  span.textContent = text;
+}
+
+function populateFilters() {
+  const sel = document.getElementById('filter-client');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Todos los clientes</option>';
+  STATE.clientes.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.id; o.textContent = c.id;
+    sel.appendChild(o);
+  });
+  sel.value = cur;
+}
+
+function updateSelects() {
+  // Assignment modal cuadrillas
+  const sc = document.getElementById('assign-cuadrilla');
+  const curC = sc.value;
+  sc.innerHTML = '<option value="">— Seleccioná cuadrilla —</option>';
+  STATE.cuadrillas.forEach(c => {
+    const o = document.createElement('option'); o.value = c.id; o.textContent = c.id; sc.appendChild(o);
+  });
+  sc.value = curC;
+
+  // Assignment modal sitios
+  const ss = document.getElementById('assign-sitio');
+  const curS = ss.value;
+  ss.innerHTML = '<option value="">— Seleccioná sitio —</option>';
+  STATE.sitios.forEach(s => {
+    const o = document.createElement('option'); o.value = s.id; o.textContent = s.id; ss.appendChild(o);
+  });
+  ss.value = curS;
+}
+
+function updateClienteSelect() {
+  const sel = document.getElementById('sitio-client');
+  sel.innerHTML = '<option value="">— Sin cliente —</option>';
+  STATE.clientes.forEach(c => {
+    const o = document.createElement('option'); o.value = c.id; o.textContent = c.id; sel.appendChild(o);
+  });
+}
+
+function buildColorPicker(selected) {
+  const row = document.getElementById('color-picker-row');
+  if (!selected) selected = document.getElementById('cliente-color').value || PALETTE[0];
+  row.innerHTML = PALETTE.map(color => `
+    <div class="color-swatch ${color === selected ? 'selected':''}" style="background:${color}" 
+         onclick="selectColor('${color}')" title="${color}"></div>
+  `).join('');
+  document.getElementById('cliente-color').value = selected;
+}
+
+function selectColor(color) {
+  document.getElementById('cliente-color').value = color;
+  document.querySelectorAll('.color-swatch').forEach(el => {
+    el.classList.toggle('selected', el.style.background === hexToRgb(color) || el.title === color);
+  });
+}
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function toast(msg, type = 'info') {
+  const tc = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast ${type} glass`;
+  el.textContent = msg;
+  tc.appendChild(el);
+  setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 3000);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DATE UTILS
+═══════════════════════════════════════════════════════════ */
+function todayStr() {
+  const d = new Date(); return fmtDate(d);
+}
+function fmtDate(d) {
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function addDays(dateStr, n) {
+  const d = new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+n); return fmtDate(d);
+}
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
