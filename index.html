@@ -707,6 +707,27 @@
   </div>
 </div>
 
+<!-- ── SHIFT MODAL ─────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-shift">
+  <div class="modal glass-solid" style="max-width:460px">
+    <div class="modal-title" style="font-size:17px;margin-bottom:14px">⚠️ Fecha ya ocupada</div>
+    <p style="font-size:13.5px;color:var(--text2);line-height:1.7;margin-bottom:20px" id="shift-msg">
+      Esta cuadrilla ya tiene asignado el sitio <strong id="shift-sitio-name"></strong> en esa fecha.<br>
+      ¿Querés desplazar todas las tareas subsiguientes hacia la derecha para hacer lugar?
+    </p>
+    <div class="modal-actions" style="justify-content:center;gap:16px">
+      <button class="btn" id="shift-cancel-btn" onclick="closeModal('shift')"
+        style="background:linear-gradient(135deg,rgba(239,68,68,0.75),rgba(220,38,38,0.70));color:#fff;border-color:rgba(255,255,255,0.3);box-shadow:0 4px 20px rgba(239,68,68,0.3),inset 0 1px 0 rgba(255,255,255,0.2);min-width:130px;">
+        Cancelar
+      </button>
+      <button class="btn" id="shift-confirm-btn"
+        style="background:linear-gradient(135deg,rgba(34,197,94,0.80),rgba(22,163,74,0.75));color:#fff;border-color:rgba(255,255,255,0.35);box-shadow:0 4px 20px rgba(34,197,94,0.3),inset 0 1px 0 rgba(255,255,255,0.25);min-width:130px;">
+        Desplazar y confirmar
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ── TOAST ────────────────────────────────────────────────────── -->
 <div id="toast-container"></div>
 
@@ -1011,9 +1032,14 @@ function renderGantt() {
 
       td.addEventListener('contextmenu', e => { e.preventDefault(); showCtx(e, cuad.id, ds, !!asig); });
       td.addEventListener('click', () => {
-        // Quick assign: open modal with pre-filled cuadrilla + date
-        prefillAssignment(cuad.id, ds);
-        openModal('assignment');
+        if (asig) {
+          // Click on assigned chip → show delete context menu
+          showCtx({ clientX: td.getBoundingClientRect().left + 20, clientY: td.getBoundingClientRect().bottom + 4 }, cuad.id, ds, true);
+        } else {
+          // Empty cell → open assignment modal
+          prefillAssignment(cuad.id, ds);
+          openModal('assignment');
+        }
       });
 
       tr.appendChild(td);
@@ -1067,11 +1093,15 @@ function prefillAssignment(cuadrillaId, fecha) {
 function showCtx(e, cuadrillaId, fecha, hasAssignment) {
   ctxTarget = { cuadrillaId, fecha };
   const menu = document.getElementById('ctx-menu');
-  document.getElementById('ctx-title').textContent = `${cuadrillaId} — ${fecha}`;
+  const asig = STATE.asignaciones.find(a => a.cuadrillaId.trim() === cuadrillaId.trim() && a.fecha.trim() === fecha.trim());
+  const sitioLabel = asig ? asig.sitioId : '';
+  document.getElementById('ctx-title').textContent = sitioLabel ? `${sitioLabel} — ${cuadrillaId}` : `${cuadrillaId} — ${fecha}`;
+  document.getElementById('ctx-assign').style.display = hasAssignment ? 'none' : 'flex';
   document.getElementById('ctx-clear').style.display = hasAssignment ? 'flex' : 'none';
   menu.classList.add('open');
+  // Use getBoundingClientRect coords if e has no clientX (called from cell click)
   menu.style.left = Math.min(e.clientX, window.innerWidth - 220) + 'px';
-  menu.style.top  = Math.min(e.clientY, window.innerHeight - 160) + 'px';
+  menu.style.top  = Math.min(e.clientY + 8, window.innerHeight - 160) + 'px';
 }
 function hideCtx() { document.getElementById('ctx-menu').classList.remove('open'); }
 function ctxAssign() {
@@ -1247,34 +1277,107 @@ function closeModal(id) {
 /* ═══════════════════════════════════════════════════════════
    SAVE ACTIONS
 ═══════════════════════════════════════════════════════════ */
+// Pending shift context
+let _pendingShift = null;
+
 async function saveAssignment() {
   const cuadrillaId = document.getElementById('assign-cuadrilla').value;
-  const sitioId = document.getElementById('assign-sitio').value;
-  const from = document.getElementById('assign-from').value;
-  const to   = document.getElementById('assign-to').value;
+  const sitioId     = document.getElementById('assign-sitio').value;
+  const from        = document.getElementById('assign-from').value;
+  const to          = document.getElementById('assign-to').value;
   if (!cuadrillaId || !sitioId || !from || !to) { toast('Completá todos los campos', 'error'); return; }
   if (from > to) { toast('Fecha inicio debe ser ≤ fecha fin', 'error'); return; }
 
-  // Build date range
   const dates = [];
   for (let d = new Date(from+'T00:00:00'); fmtDate(d) <= to; d.setDate(d.getDate()+1)) dates.push(fmtDate(new Date(d)));
 
+  // Check for conflicts: does this cuadrilla already have a DIFFERENT sitio on any of these dates?
+  const conflict = dates.reduce((found, fecha) => {
+    if (found) return found;
+    const existing = STATE.asignaciones.find(a =>
+      a.cuadrillaId.trim() === cuadrillaId.trim() &&
+      a.fecha.trim() === fecha &&
+      a.sitioId.trim() !== sitioId.trim()
+    );
+    return existing ? { fecha, sitioId: existing.sitioId } : null;
+  }, null);
+
+  if (conflict) {
+    // Show shift modal instead of saving directly
+    _pendingShift = { cuadrillaId, sitioId, dates, conflictFrom: conflict.fecha };
+    document.getElementById('shift-sitio-name').textContent = conflict.sitioId;
+    document.getElementById('shift-confirm-btn').onclick = () => executeShiftAndAssign();
+    closeModal('assignment');
+    openModal('shift');
+    return;
+  }
+
+  await doSaveAssignment(cuadrillaId, sitioId, dates);
+}
+
+async function doSaveAssignment(cuadrillaId, sitioId, dates) {
   try {
     const result = await apiPost('setAsignaciones', { cuadrillaId, sitioId, fechas: dates });
     if (result.ok) {
-      // Update local state immediately (no esperar al sync)
       dates.forEach(fecha => {
         const idx = STATE.asignaciones.findIndex(a => a.cuadrillaId.trim() === cuadrillaId.trim() && a.fecha.trim() === fecha.trim());
         if (idx > -1) STATE.asignaciones[idx] = { cuadrillaId, sitioId, fecha };
         else STATE.asignaciones.push({ cuadrillaId, sitioId, fecha });
       });
-      closeModal('assignment');
       renderGantt();
       toast(`${dates.length} dia${dates.length>1?'s':''} asignados ✓`, 'success');
-      // Sync despues de 4 segundos para dar tiempo al Sheets a procesar
       setTimeout(refreshAll, 4000);
     } else throw new Error(result.error);
   } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function executeShiftAndAssign() {
+  if (!_pendingShift) return;
+  closeModal('shift');
+  const { cuadrillaId, sitioId, dates, conflictFrom } = _pendingShift;
+  _pendingShift = null;
+
+  // How many days to shift = length of the new block
+  const shiftDays = dates.length;
+
+  // Collect all assignments for this cuadrilla from conflictFrom onwards (excluding the new dates)
+  const toShift = STATE.asignaciones
+    .filter(a => a.cuadrillaId.trim() === cuadrillaId.trim() && a.fecha >= conflictFrom)
+    .sort((a,b) => a.fecha.localeCompare(b.fecha));
+
+  // Build shifted assignments (from latest to earliest to avoid overwriting)
+  const shiftedGroups = {};
+  toShift.forEach(a => {
+    const newFecha = addDays(a.fecha, shiftDays);
+    if (!shiftedGroups[a.sitioId]) shiftedGroups[a.sitioId] = [];
+    shiftedGroups[a.sitioId].push({ old: a.fecha, new: newFecha, sitioId: a.sitioId });
+  });
+
+  // Delete old shifted assignments from state
+  toShift.forEach(a => {
+    const idx = STATE.asignaciones.findIndex(x => x.cuadrillaId === cuadrillaId && x.fecha === a.fecha && x.sitioId === a.sitioId);
+    if (idx > -1) STATE.asignaciones.splice(idx, 1);
+  });
+
+  // Save shifted assignments to Sheets — group by sitioId for efficiency
+  for (const [sid, items] of Object.entries(shiftedGroups)) {
+    const newFechas = items.map(i => i.new);
+    try {
+      await apiPost('setAsignaciones', { cuadrillaId, sitioId: sid, fechas: newFechas });
+      newFechas.forEach(f => STATE.asignaciones.push({ cuadrillaId, sitioId: sid, fecha: f }));
+    } catch(e) { toast('Error al desplazar: ' + e.message, 'error'); }
+  }
+
+  // Also delete old conflicting rows in Sheets
+  for (const a of toShift) {
+    try {
+      await apiPost('deleteAsignacion', { cuadrillaId, sitioId: a.sitioId, fecha: a.fecha });
+    } catch(e) { /* ignore if already replaced */ }
+  }
+
+  // Now save the new assignment
+  await doSaveAssignment(cuadrillaId, sitioId, dates);
+  toast('Tareas desplazadas y asignación guardada ✓', 'success');
 }
 
 async function saveCuadrilla() {
