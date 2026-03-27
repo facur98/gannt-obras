@@ -548,17 +548,29 @@
     <div class="page-header">
       <div class="page-title">Sitios <small>Obras y ubicaciones</small></div>
       <div class="page-actions">
-        <select id="sitios-filter-client" onchange="renderSitiosGrid()"
-          style="padding:8px 14px;border-radius:50px;border:1px solid rgba(200,210,240,0.7);background:rgba(255,255,255,0.65);font-family:var(--font);font-size:13px;color:var(--text);outline:none;backdrop-filter:blur(8px)">
-          <option value="">Todos los clientes</option>
-        </select>
         <button class="btn btn-primary" onclick="openModal('sitio')">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Nuevo Sitio
         </button>
       </div>
     </div>
-    <div class="cards-grid" id="sitios-grid"></div>
+    <!-- Sitios filters bar -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center">
+      <select id="sitios-filter-client" onchange="renderSitiosGrid()"
+        style="padding:8px 16px;border-radius:50px;border:1px solid rgba(200,210,240,0.7);background:rgba(255,255,255,0.65);font-family:var(--font);font-size:13px;color:var(--text);outline:none;backdrop-filter:blur(8px)">
+        <option value="">Todos los clientes</option>
+      </select>
+      <select id="sitios-filter-cuadrilla" onchange="renderSitiosGrid()"
+        style="padding:8px 16px;border-radius:50px;border:1px solid rgba(200,210,240,0.7);background:rgba(255,255,255,0.65);font-family:var(--font);font-size:13px;color:var(--text);outline:none;backdrop-filter:blur(8px)">
+        <option value="">Todas las cuadrillas</option>
+      </select>
+      <select id="sitios-filter-week" onchange="renderSitiosGrid()"
+        style="padding:8px 16px;border-radius:50px;border:1px solid rgba(200,210,240,0.7);background:rgba(255,255,255,0.65);font-family:var(--font);font-size:13px;color:var(--text);outline:none;backdrop-filter:blur(8px)">
+        <option value="">Todas las semanas</option>
+        <option value="sin-asignacion">Sin asignación</option>
+      </select>
+    </div>
+    <div id="sitios-list"></div>
   </div>
 
   <!-- ═══════════════ CLIENTES SECTION ═══════════════ -->
@@ -649,7 +661,32 @@
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal('assignment')">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveAssignment()">Guardar</button>
+      <button class="btn btn-primary" onclick="saveAssignment()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Assignment confirm modal -->
+<div class="modal-overlay" id="modal-assign-confirm">
+  <div class="modal glass-solid" style="max-width:420px;text-align:center">
+    <div style="font-size:28px;margin-bottom:12px">📋</div>
+    <div class="modal-title" style="font-size:16px;margin-bottom:14px">Confirmar asignación</div>
+    <div id="assign-confirm-msg" style="font-size:13.5px;color:var(--text2);line-height:1.8;margin-bottom:24px;padding:14px;background:rgba(79,110,247,0.06);border-radius:10px;border:1px solid rgba(79,110,247,0.15)"></div>
+    <div style="display:flex;gap:14px;justify-content:center">
+      <!-- Red X -->
+      <button onclick="closeModal('assign-confirm');closeModal('assignment')"
+        style="width:52px;height:52px;border-radius:50%;border:1.5px solid rgba(239,68,68,0.4);background:linear-gradient(135deg,rgba(239,68,68,0.18),rgba(220,38,38,0.12));backdrop-filter:blur(12px);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(239,68,68,0.2),inset 0 1px 0 rgba(255,255,255,0.3);transition:all .2s"
+        onmouseover="this.style.background='linear-gradient(135deg,rgba(239,68,68,0.35),rgba(220,38,38,0.25))'"
+        onmouseout="this.style.background='linear-gradient(135deg,rgba(239,68,68,0.18),rgba(220,38,38,0.12))'">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <!-- Green check -->
+      <button id="assign-confirm-ok" onclick="confirmAndSave()"
+        style="width:52px;height:52px;border-radius:50%;border:1.5px solid rgba(34,197,94,0.45);background:linear-gradient(135deg,rgba(34,197,94,0.22),rgba(22,163,74,0.15));backdrop-filter:blur(12px);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(34,197,94,0.22),inset 0 1px 0 rgba(255,255,255,0.35);transition:all .2s"
+        onmouseover="this.style.background='linear-gradient(135deg,rgba(34,197,94,0.4),rgba(22,163,74,0.3))'"
+        onmouseout="this.style.background='linear-gradient(135deg,rgba(34,197,94,0.22),rgba(22,163,74,0.15))'">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.8"><polyline points="20 6 9 17 4 12"/></svg>
+      </button>
     </div>
   </div>
 </div>
@@ -1268,112 +1305,155 @@ function showAsigDetail(cuadrillaId) {
 }
 
 function renderSitiosGrid() {
-  // Populate cliente filter options
-  const filterEl = document.getElementById('sitios-filter-client');
-  if (filterEl) {
-    const curVal = filterEl.value;
-    filterEl.innerHTML = '<option value="">Todos los clientes</option>';
-    STATE.clientes.forEach(c => {
-      const o = document.createElement('option'); o.value = c.id; o.textContent = c.id; filterEl.appendChild(o);
-    });
-    filterEl.value = curVal;
+  function getISOWeek(d) {
+    const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+    return Math.ceil((((tmp - yearStart) / 86400000) + 1) / 7);
   }
-  const clientFilt = filterEl ? filterEl.value : '';
+  function fmt(f) { const p=f.split('-'); return p[2]+'/'+p[1]; }
+  function weekLabel(f) { return 'W' + String(getISOWeek(new Date(f+'T00:00:00'))).padStart(2,'0'); }
 
-  const grid = document.getElementById('sitios-grid');
-  let sitios = clientFilt ? STATE.sitios.filter(s => s.clienteId === clientFilt) : STATE.sitios;
+  // Populate client filter
+  const clientEl = document.getElementById('sitios-filter-client');
+  if (clientEl) {
+    const curC = clientEl.value;
+    clientEl.innerHTML = '<option value="">Todos los clientes</option>';
+    STATE.clientes.forEach(c => {
+      const o = document.createElement('option'); o.value=c.id; o.textContent=c.id; clientEl.appendChild(o);
+    });
+    clientEl.value = curC;
+  }
 
+  // Populate cuadrilla filter
+  const cuadEl = document.getElementById('sitios-filter-cuadrilla');
+  if (cuadEl) {
+    const curQ = cuadEl.value;
+    cuadEl.innerHTML = '<option value="">Todas las cuadrillas</option>';
+    STATE.cuadrillas.forEach(c => {
+      const o = document.createElement('option'); o.value=c.id; o.textContent=c.id; cuadEl.appendChild(o);
+    });
+    cuadEl.value = curQ;
+  }
+
+  // Populate week filter — only weeks that have actual assignments
+  const weekEl = document.getElementById('sitios-filter-week');
+  if (weekEl) {
+    const curW = weekEl.value;
+    const weeksSet = new Set();
+    STATE.asignaciones.forEach(a => weeksSet.add(weekLabel(a.fecha)));
+    const weeksSorted = Array.from(weeksSet).sort();
+    weekEl.innerHTML = '<option value="">Todas las semanas</option><option value="sin-asignacion">Sin asignación</option>';
+    weeksSorted.forEach(w => {
+      const o = document.createElement('option'); o.value=w; o.textContent=w; weekEl.appendChild(o);
+    });
+    weekEl.value = curW;
+  }
+
+  const clientFilt  = clientEl ? clientEl.value : '';
+  const cuadFilt    = cuadEl   ? cuadEl.value   : '';
+  const weekFilt    = weekEl   ? weekEl.value   : '';
+  const today       = todayStr();
+
+  // Filter sitios
+  let sitios = STATE.sitios;
+  if (clientFilt) sitios = sitios.filter(s => s.clienteId === clientFilt);
+  if (weekFilt === 'sin-asignacion') {
+    sitios = sitios.filter(s => !STATE.asignaciones.find(a => a.sitioId.trim() === s.id.trim()));
+  } else if (weekFilt) {
+    sitios = sitios.filter(s =>
+      STATE.asignaciones.find(a => a.sitioId.trim() === s.id.trim() && weekLabel(a.fecha) === weekFilt)
+    );
+  }
+  if (cuadFilt) {
+    sitios = sitios.filter(s =>
+      STATE.asignaciones.find(a => a.sitioId.trim() === s.id.trim() && a.cuadrillaId.trim() === cuadFilt)
+    );
+  }
+
+  const container = document.getElementById('sitios-list');
   if (!sitios.length) {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📍</div><p>No hay sitios registrados</p><button class="btn btn-primary" onclick="openModal('sitio')">Agregar primer sitio</button></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">📍</div><p>No hay sitios que coincidan con los filtros</p></div>`;
     return;
   }
 
-  const today = todayStr();
-
-  grid.innerHTML = sitios.map(s => {
+  container.innerHTML = sitios.map(s => {
     const cliente = STATE.clientes.find(c => c.id === s.clienteId);
-    const color = cliente ? cliente.color : '#9ca3af';
+    const color   = cliente ? cliente.color : '#9ca3af';
 
-    // Find all assignments for this sitio
     const asigsSitio = STATE.asignaciones
       .filter(a => a.sitioId.trim() === s.id.trim())
       .sort((a,b) => a.fecha.localeCompare(b.fecha));
 
-    // Determine status: upcoming / en curso / finalizado
     const firstDate = asigsSitio.length ? asigsSitio[0].fecha : null;
     const lastDate  = asigsSitio.length ? asigsSitio[asigsSitio.length-1].fecha : null;
 
     let statusBadge = '';
     if (asigsSitio.length) {
       if (lastDate < today) {
-        // All assignments in the past → Finalizado
-        statusBadge = `<div style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:50px;font-size:11.5px;font-weight:600;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.35);color:#16a34a;backdrop-filter:blur(8px)">✓ Finalizado</div>`;
+        statusBadge = `<span style="padding:3px 10px;border-radius:50px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.35);color:#16a34a">✓ Finalizado</span>`;
       } else if (firstDate <= today && today <= lastDate) {
-        // Currently active → En curso
-        statusBadge = `<div style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:50px;font-size:11.5px;font-weight:600;background:rgba(234,179,8,0.15);border:1px solid rgba(234,179,8,0.4);color:#b45309;backdrop-filter:blur(8px)">● En curso</div>`;
+        statusBadge = `<span style="padding:3px 10px;border-radius:50px;font-size:11px;font-weight:600;background:rgba(234,179,8,0.15);border:1px solid rgba(234,179,8,0.4);color:#b45309">● En curso</span>`;
       } else {
-        // Future → A iniciar en X días
         const diff = Math.ceil((new Date(firstDate+'T00:00:00') - new Date(today+'T00:00:00')) / 86400000);
-        statusBadge = `<div style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:50px;font-size:11.5px;font-weight:600;background:rgba(249,115,22,0.13);border:1px solid rgba(249,115,22,0.35);color:#c2410c;backdrop-filter:blur(8px)">◷ A iniciar en ${diff} día${diff!==1?'s':''}</div>`;
+        statusBadge = `<span style="padding:3px 10px;border-radius:50px;font-size:11px;font-weight:600;background:rgba(249,115,22,0.13);border:1px solid rgba(249,115,22,0.35);color:#c2410c">◷ A iniciar en ${diff} día${diff!==1?'s':''}</span>`;
       }
+    } else {
+      statusBadge = `<span style="padding:3px 10px;border-radius:50px;font-size:11px;font-weight:600;background:rgba(156,163,175,0.15);border:1px solid rgba(156,163,175,0.3);color:#6b7280">Sin asignación</span>`;
     }
 
-    // Build assignment info lines (grouped per cuadrilla)
-    function getISOWeek(d) {
-      const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-      tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
-      const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
-      return Math.ceil((((tmp - yearStart) / 86400000) + 1) / 7);
-    }
-    function fmt(f) { const p=f.split('-'); return p[2]+'/'+p[1]; }
-
-    // Group by cuadrilla → week ranges
+    // Assignment rows per cuadrilla
     const byCuad = {};
     asigsSitio.forEach(a => {
       if (!byCuad[a.cuadrillaId]) byCuad[a.cuadrillaId] = [];
       byCuad[a.cuadrillaId].push(a.fecha);
     });
 
-    const asigLines = lastDate && lastDate >= today
+    const asigRows = lastDate && lastDate >= today
       ? Object.entries(byCuad).map(([cuadId, fechas]) => {
           fechas.sort();
-          const w = 'W'+String(getISOWeek(new Date(fechas[0]+'T00:00:00'))).padStart(2,'0');
+          const w = weekLabel(fechas[0]);
           const cuad = STATE.cuadrillas.find(c => c.id === cuadId);
           const cuadColor = cuad && cuad.tipo === 'Externa' ? '#ec4899' : '#4f6ef7';
           const range = fechas.length === 1 ? fmt(fechas[0]) : fmt(fechas[0]) + ' al ' + fmt(fechas[fechas.length-1]);
-          return `<div style="display:flex;align-items:center;gap:6px;margin-top:5px;font-size:11.5px;color:var(--text2)">
-            <div style="width:8px;height:8px;border-radius:50%;background:${cuadColor};flex-shrink:0"></div>
-            <span style="font-weight:600;color:var(--text)">${escHtml(cuadId)}</span>
-            <span style="color:var(--accent);font-weight:600">${w}</span>
-            <span>${range}</span>
+          return `<div style="display:flex;align-items:center;gap:8px;font-size:12px">
+            <div style="width:7px;height:7px;border-radius:50%;background:${cuadColor};flex-shrink:0"></div>
+            <span style="font-weight:600;color:var(--text);min-width:100px">${escHtml(cuadId)}</span>
+            <span style="color:var(--accent);font-weight:600;min-width:36px">${w}</span>
+            <span style="color:var(--text2)">${range}</span>
           </div>`;
         }).join('')
       : '';
 
-    return `
-    <div class="card glass" data-id="${escHtml(s.id)}" style="position:relative;padding-top:20px">
-      <div class="card-color-bar" style="background:${color}"></div>
-      <!-- Edit + Delete buttons top-right -->
-      <div style="position:absolute;top:14px;right:14px;display:flex;gap:6px;align-items:center">
+    return `<div style="display:flex;align-items:stretch;gap:0;background:rgba(255,255,255,0.6);border:1px solid rgba(200,210,240,0.5);border-radius:14px;overflow:hidden;margin-bottom:10px;backdrop-filter:blur(12px);transition:box-shadow .15s"
+      onmouseover="this.style.boxShadow='0 4px 20px rgba(100,120,200,0.12)'" onmouseout="this.style.boxShadow=''">
+      <!-- Color strip -->
+      <div style="width:5px;background:${color};flex-shrink:0"></div>
+      <!-- Main content -->
+      <div style="flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-family:var(--font-h);font-size:15px;font-weight:700">${escHtml(s.id)}</span>
+          <div style="display:flex;align-items:center;gap:5px">
+            <span style="width:9px;height:9px;border-radius:50%;background:${color};display:inline-block"></span>
+            <span style="font-size:12px;color:var(--text2)">${cliente ? escHtml(cliente.id) : '<em>Sin cliente</em>'}</span>
+          </div>
+          ${statusBadge}
+        </div>
+        ${asigRows ? '<div style="display:flex;flex-direction:column;gap:4px;padding-top:4px">' + asigRows + '</div>' : ''}
+      </div>
+      <!-- Actions -->
+      <div style="display:flex;flex-direction:column;justify-content:center;gap:8px;padding:12px 14px;border-left:1px solid rgba(200,210,240,0.3)">
         <button onclick="editSitio('${escHtml(s.id)}')" title="Editar"
-          style="width:30px;height:30px;border-radius:50%;border:1px solid rgba(200,210,240,0.7);background:rgba(255,255,255,0.6);backdrop-filter:blur(8px);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;box-shadow:0 2px 8px rgba(100,120,200,0.1)"
-          onmouseover="this.style.background='rgba(255,255,255,0.9)'" onmouseout="this.style.background='rgba(255,255,255,0.6)'">
+          style="width:32px;height:32px;border-radius:50%;border:1px solid rgba(200,210,240,0.7);background:rgba(255,255,255,0.6);backdrop-filter:blur(8px);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s"
+          onmouseover="this.style.background='rgba(255,255,255,0.95)'" onmouseout="this.style.background='rgba(255,255,255,0.6)'">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
         <button onclick="confirmDelete('sitio','${escHtml(s.id)}')" title="Eliminar"
-          style="width:30px;height:30px;border-radius:50%;border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.1);backdrop-filter:blur(8px);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;box-shadow:0 2px 8px rgba(239,68,68,0.1)"
-          onmouseover="this.style.background='rgba(239,68,68,0.2)'" onmouseout="this.style.background='rgba(239,68,68,0.1)'">
+          style="width:32px;height:32px;border-radius:50%;border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.08);backdrop-filter:blur(8px);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s"
+          onmouseover="this.style.background='rgba(239,68,68,0.2)'" onmouseout="this.style.background='rgba(239,68,68,0.08)'">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
-      <!-- Card content -->
-      <div class="card-name" style="padding-right:72px">${escHtml(s.id)}</div>
-      <div style="display:flex;align-items:center;gap:6px;margin-top:4px;margin-bottom:8px">
-        <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
-        <span style="font-size:12px;color:var(--text2)">${cliente ? escHtml(cliente.id) : '<em>Sin cliente</em>'}</span>
-      </div>
-      ${statusBadge ? '<div style="margin-bottom:8px">' + statusBadge + '</div>' : ''}
-      ${asigLines}
     </div>`;
   }).join('');
 }
@@ -1386,6 +1466,8 @@ function renderClientesGrid() {
   }
   grid.innerHTML = STATE.clientes.map(c => {
     const sitiosCount = STATE.sitios.filter(s => s.clienteId === c.id).length;
+    // Sitios with active assignments
+    const sitiosConAsig = STATE.sitios.filter(s => s.clienteId === c.id && STATE.asignaciones.some(a => a.sitioId.trim() === s.id.trim())).length;
     return `
     <div class="card glass" data-id="${escHtml(c.id)}">
       <div class="card-color-bar" style="background:${c.color}"></div>
@@ -1393,7 +1475,7 @@ function renderClientesGrid() {
         <div style="width:36px;height:36px;border-radius:10px;background:${c.color};opacity:.9"></div>
         <div>
           <div class="card-name" style="margin-bottom:0">${escHtml(c.id)}</div>
-          <div class="card-sub">${sitiosCount} sitio${sitiosCount !== 1?'s':''}</div>
+          <div class="card-sub">${sitiosCount} sitio${sitiosCount !== 1?'s':''} · ${sitiosConAsig} asignado${sitiosConAsig !== 1?'s':''}</div>
         </div>
       </div>
       <div class="card-actions">
@@ -1473,6 +1555,10 @@ function updateSitioOptions() {
       if (conflict) { otraCuadrilla = conflict.cuadrillaId; break; }
     }
 
+    // Rule 3: sitio is assigned to ANY cuadrilla at ALL (globally blocked regardless of dates)
+    const globalAssigned = STATE.asignaciones.find(a => a.sitioId.trim() === s.id.trim());
+    const globalCuad = globalAssigned ? globalAssigned.cuadrillaId : null;
+
     if (solapaDates.length > 0) {
       o.disabled = true;
       o.textContent = s.id + ' — se solapa con otras asignaciones';
@@ -1480,6 +1566,10 @@ function updateSitioOptions() {
     } else if (otraCuadrilla) {
       o.disabled = true;
       o.textContent = s.id + ' — asignado a cuadrilla ' + otraCuadrilla;
+      o.style.color = '#9ca3af';
+    } else if (globalCuad && globalCuad !== selCuad) {
+      o.disabled = true;
+      o.textContent = s.id + ' — Asignado a ' + globalCuad;
       o.style.color = '#9ca3af';
     } else {
       o.textContent = s.id;
@@ -1502,6 +1592,9 @@ function closeModal(id) {
 /* ═══════════════════════════════════════════════════════════
    SAVE ACTIONS
 ═══════════════════════════════════════════════════════════ */
+// Pending assignment
+let _pendingAssignment = null;
+
 async function saveAssignment() {
   const cuadrillaId = document.getElementById('assign-cuadrilla').value;
   const sitioId     = document.getElementById('assign-sitio').value;
@@ -1515,6 +1608,27 @@ async function saveAssignment() {
     dates.push(fmtDate(new Date(d)));
   }
 
+  // Store pending and show confirmation modal
+  _pendingAssignment = { cuadrillaId, sitioId, dates };
+
+  function fmtShort(f) { const p=f.split('-'); return p[2]+'/'+p[1]; }
+  const fromFmt = fmtShort(from);
+  const toFmt   = from === to ? '' : ' al ' + fmtShort(to);
+  document.getElementById('assign-confirm-msg').innerHTML =
+    `Estás asignando el sitio <strong>${escHtml(sitioId)}</strong><br>
+    a la cuadrilla <strong>${escHtml(cuadrillaId)}</strong><br>
+    del <strong>${fromFmt}${toFmt}</strong>
+    (${dates.length} día${dates.length!==1?'s':''})`;
+
+  openModal('assign-confirm');
+}
+
+async function confirmAndSave() {
+  if (!_pendingAssignment) return;
+  closeModal('assign-confirm');
+  closeModal('assignment');
+  const { cuadrillaId, sitioId, dates } = _pendingAssignment;
+  _pendingAssignment = null;
   await doSaveAssignment(cuadrillaId, sitioId, dates);
 }
 
@@ -1528,7 +1642,8 @@ async function doSaveAssignment(cuadrillaId, sitioId, dates) {
         else STATE.asignaciones.push({ cuadrillaId, sitioId, fecha });
       });
       renderGantt();
-      toast(`${dates.length} dia${dates.length>1?'s':''} asignados ✓`, 'success');
+      // Show "Asignación confirmada" toast for 2 seconds
+      toast('Asignacion confirmada ✓', 'success');
       setTimeout(refreshAll, 4000);
     } else throw new Error(result.error);
   } catch(e) { toast('Error: ' + e.message, 'error'); }
