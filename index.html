@@ -709,20 +709,21 @@
 
 <!-- ── SHIFT MODAL ─────────────────────────────────────────────── -->
 <div class="modal-overlay" id="modal-shift">
-  <div class="modal glass-solid" style="max-width:460px">
-    <div class="modal-title" style="font-size:17px;margin-bottom:14px">⚠️ Fecha ya ocupada</div>
-    <p style="font-size:13.5px;color:var(--text2);line-height:1.7;margin-bottom:20px" id="shift-msg">
-      Esta cuadrilla ya tiene asignado el sitio <strong id="shift-sitio-name"></strong> en esa fecha.<br>
-      ¿Querés desplazar todas las tareas subsiguientes hacia la derecha para hacer lugar?
-    </p>
+  <div class="modal glass-solid" style="max-width:500px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <div style="width:40px;height:40px;border-radius:12px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">⚠️</div>
+      <div class="modal-title" style="margin-bottom:0;font-size:18px">Conflicto de asignación</div>
+    </div>
+    <div style="font-size:13.5px;color:var(--text2);line-height:1.8;margin-bottom:24px;padding:14px;background:rgba(245,158,11,0.07);border-radius:10px;border:1px solid rgba(245,158,11,0.2)" id="shift-msg">
+    </div>
     <div class="modal-actions" style="justify-content:center;gap:16px">
       <button class="btn" id="shift-cancel-btn" onclick="closeModal('shift')"
-        style="background:linear-gradient(135deg,rgba(239,68,68,0.75),rgba(220,38,38,0.70));color:#fff;border-color:rgba(255,255,255,0.3);box-shadow:0 4px 20px rgba(239,68,68,0.3),inset 0 1px 0 rgba(255,255,255,0.2);min-width:130px;">
-        Cancelar
+        style="background:linear-gradient(135deg,rgba(239,68,68,0.80),rgba(220,38,38,0.75));color:#fff;border-color:rgba(255,255,255,0.3);box-shadow:0 6px 24px rgba(239,68,68,0.35),inset 0 1px 0 rgba(255,255,255,0.25);min-width:130px;padding:11px 22px;font-size:14px;">
+        ✕ Cancelar
       </button>
       <button class="btn" id="shift-confirm-btn"
-        style="background:linear-gradient(135deg,rgba(34,197,94,0.80),rgba(22,163,74,0.75));color:#fff;border-color:rgba(255,255,255,0.35);box-shadow:0 4px 20px rgba(34,197,94,0.3),inset 0 1px 0 rgba(255,255,255,0.25);min-width:130px;">
-        Desplazar y confirmar
+        style="background:linear-gradient(135deg,rgba(34,197,94,0.85),rgba(22,163,74,0.80));color:#fff;border-color:rgba(255,255,255,0.4);box-shadow:0 6px 24px rgba(34,197,94,0.35),inset 0 1px 0 rgba(255,255,255,0.3);min-width:160px;padding:11px 22px;font-size:14px;">
+        ✓ Desplazar y confirmar
       </button>
     </div>
   </div>
@@ -1225,7 +1226,6 @@ function updateSitioOptions() {
   const curS = ss.value;
   ss.innerHTML = '<option value="">— Seleccioná sitio —</option>';
 
-  // Build set of dates in range
   const rangeDates = [];
   if (selFrom && selTo) {
     for (let d = new Date(selFrom+'T00:00:00'); fmtDate(d) <= selTo; d.setDate(d.getDate()+1)) {
@@ -1237,25 +1237,23 @@ function updateSitioOptions() {
     const o = document.createElement('option');
     o.value = s.id;
 
-    // Check if this cuadrilla already has THIS sitio on any of these dates
-    // (allow re-assigning same sitio = edit)
-    // Block only if cuadrilla already has a DIFFERENT sitio on any of these dates
-    let alreadyTakenDates = [];
+    // Find conflicting dates: cuadrilla has a DIFFERENT sitio on those days
+    let conflictDates = [];
     if (selCuad && rangeDates.length) {
-      alreadyTakenDates = rangeDates.filter(fd => {
-        const existing = STATE.asignaciones.find(a =>
+      conflictDates = rangeDates.filter(fd =>
+        STATE.asignaciones.find(a =>
           a.cuadrillaId.trim() === selCuad.trim() &&
           a.fecha.trim() === fd &&
           a.sitioId.trim() !== s.id.trim()
-        );
-        return !!existing;
-      });
+        )
+      );
     }
 
-    if (alreadyTakenDates.length > 0) {
-      o.disabled = true;
-      o.textContent = s.id + ' (ya asignada en ' + alreadyTakenDates.length + ' día/s)';
-      o.style.color = '#aaa';
+    if (conflictDates.length > 0) {
+      // SHOW as selectable but with a warning indicator
+      o.textContent = '⚠️ ' + s.id + ' (conflicto en ' + conflictDates.length + ' día/s → se desplazará)';
+      o.style.color = '#b45309';
+      o.dataset.hasConflict = 'true';
     } else {
       o.textContent = s.id;
     }
@@ -1263,9 +1261,8 @@ function updateSitioOptions() {
   });
 
   ss.value = curS;
-  // If previously selected is now disabled, clear it
-  if (ss.selectedOptions[0] && ss.selectedOptions[0].disabled) ss.value = '';
 }
+
 function closeModal(id) {
   document.getElementById('modal-' + id).classList.remove('open');
   // Reset fields
@@ -1286,26 +1283,49 @@ async function saveAssignment() {
   const from        = document.getElementById('assign-from').value;
   const to          = document.getElementById('assign-to').value;
   if (!cuadrillaId || !sitioId || !from || !to) { toast('Completá todos los campos', 'error'); return; }
-  if (from > to) { toast('Fecha inicio debe ser ≤ fecha fin', 'error'); return; }
+  if (from > to) { toast('Fecha inicio debe ser menor o igual a fecha fin', 'error'); return; }
 
   const dates = [];
-  for (let d = new Date(from+'T00:00:00'); fmtDate(d) <= to; d.setDate(d.getDate()+1)) dates.push(fmtDate(new Date(d)));
+  for (let d = new Date(from+'T00:00:00'); fmtDate(d) <= to; d.setDate(d.getDate()+1)) {
+    dates.push(fmtDate(new Date(d)));
+  }
 
-  // Check for conflicts: does this cuadrilla already have a DIFFERENT sitio on any of these dates?
-  const conflict = dates.reduce((found, fecha) => {
-    if (found) return found;
+  // Find ALL conflicts: dates where this cuadrilla has a different sitio
+  const conflicts = [];
+  dates.forEach(fecha => {
     const existing = STATE.asignaciones.find(a =>
       a.cuadrillaId.trim() === cuadrillaId.trim() &&
       a.fecha.trim() === fecha &&
       a.sitioId.trim() !== sitioId.trim()
     );
-    return existing ? { fecha, sitioId: existing.sitioId } : null;
-  }, null);
+    if (existing && !conflicts.find(c => c.sitioId === existing.sitioId && c.fecha === fecha)) {
+      conflicts.push({ fecha, sitioId: existing.sitioId });
+    }
+  });
 
-  if (conflict) {
-    // Show shift modal instead of saving directly
-    _pendingShift = { cuadrillaId, sitioId, dates, conflictFrom: conflict.fecha };
-    document.getElementById('shift-sitio-name').textContent = conflict.sitioId;
+  if (conflicts.length > 0) {
+    // Build readable conflict summary
+    // Group by sitioId
+    const bySitio = {};
+    conflicts.forEach(c => {
+      if (!bySitio[c.sitioId]) bySitio[c.sitioId] = [];
+      bySitio[c.sitioId].push(c.fecha);
+    });
+    const conflictLines = Object.entries(bySitio).map(([sid, fechas]) => {
+      const fechaStr = fechas.map(f => {
+        const parts = f.split('-');
+        return parts[2]+'/'+parts[1];
+      }).join(', ');
+      return `<strong>${sid}</strong> (${fechaStr})`;
+    }).join(' y ');
+
+    _pendingShift = { cuadrillaId, sitioId, dates, conflictFrom: conflicts[0].fecha };
+
+    // Update modal message with full detail
+    document.getElementById('shift-msg').innerHTML =
+      `En los días seleccionados ya tenés asignado: ${conflictLines} para la cuadrilla <strong>${cuadrillaId}</strong>.<br><br>
+      ¿Querés reemplazar esas fechas por <strong>${sitioId}</strong> y desplazar todas las tareas subsiguientes hacia la derecha?`;
+
     document.getElementById('shift-confirm-btn').onclick = () => executeShiftAndAssign();
     closeModal('assignment');
     openModal('shift');
