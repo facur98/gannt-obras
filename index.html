@@ -724,15 +724,47 @@
 
 <!-- New Sitio modal -->
 <div class="modal-overlay" id="modal-sitio">
-  <div class="modal glass-solid">
+  <div class="modal glass-solid" style="max-width:480px">
     <div class="modal-title" id="modal-sitio-title">Nuevo Sitio</div>
     <div class="form-group">
       <label>ID / Nombre del Sitio</label>
       <input type="text" id="sitio-name" placeholder="Ej: Sitio Norte 1…">
     </div>
-    <div class="form-group">
-      <label>Cliente</label>
-      <select id="sitio-client"></select>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Cliente</label>
+        <select id="sitio-client"></select>
+      </div>
+      <div class="form-group">
+        <label>Ubicación</label>
+        <select id="sitio-ubicacion">
+          <option value="">— Sin ubicación —</option>
+          <option>Buenos Aires</option>
+          <option>CABA</option>
+          <option>Catamarca</option>
+          <option>Chaco</option>
+          <option>Chubut</option>
+          <option>Córdoba</option>
+          <option>Corrientes</option>
+          <option>Entre Ríos</option>
+          <option>Formosa</option>
+          <option>Jujuy</option>
+          <option>La Pampa</option>
+          <option>La Rioja</option>
+          <option>Mendoza</option>
+          <option>Misiones</option>
+          <option>Neuquén</option>
+          <option>Río Negro</option>
+          <option>Salta</option>
+          <option>San Juan</option>
+          <option>San Luis</option>
+          <option>Santa Cruz</option>
+          <option>Santa Fe</option>
+          <option>Santiago del Estero</option>
+          <option>Tierra del Fuego</option>
+          <option>Tucumán</option>
+        </select>
+      </div>
     </div>
     <input type="hidden" id="sitio-edit-id">
     <div class="modal-actions">
@@ -1197,7 +1229,8 @@ function renderCuadrillasGrid() {
     return;
   }
   grid.innerHTML = cuads.map(c => {
-    const asigCount = STATE.asignaciones.filter(a => a.cuadrillaId === c.id).length;
+    // Count unique sitios assigned to this cuadrilla (not days)
+    const asigCount = new Set(STATE.asignaciones.filter(a => a.cuadrillaId === c.id).map(a => a.sitioId)).size;
     const isPropia = (c.tipo || 'Propia') === 'Propia';
     const dotColor = isPropia ? '#4f6ef7' : '#ec4899';
     const barColor = isPropia ? '#4f6ef7' : '#ec4899';
@@ -1432,7 +1465,7 @@ function renderSitiosGrid() {
       <!-- Main content -->
       <div style="flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:6px">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span style="font-family:var(--font-h);font-size:15px;font-weight:700">${escHtml(s.id)}</span>
+          <span style="font-family:var(--font-h);font-size:15px;font-weight:700">${escHtml(s.id)}${s.ubicacion ? ' <span style="font-weight:400;color:var(--text2);font-family:var(--font);font-size:13px">— ' + escHtml(s.ubicacion) + '</span>' : ''}</span>
           <div style="display:flex;align-items:center;gap:5px">
             <span style="width:9px;height:9px;border-radius:50%;background:${color};display:inline-block"></span>
             <span style="font-size:12px;color:var(--text2)">${cliente ? escHtml(cliente.id) : '<em>Sin cliente</em>'}</span>
@@ -1585,7 +1618,7 @@ function closeModal(id) {
   document.getElementById('modal-' + id).classList.remove('open');
   // Reset fields
   if (id === 'cuadrilla') { document.getElementById('cuadrilla-name').value=''; document.getElementById('cuadrilla-edit-id').value=''; document.getElementById('cuadrilla-tipo').value='Propia'; document.getElementById('cuadrilla-integrantes').value=''; document.getElementById('modal-cuadrilla-title').textContent='Nueva Cuadrilla'; }
-  if (id === 'sitio')     { document.getElementById('sitio-name').value=''; document.getElementById('sitio-edit-id').value=''; document.getElementById('modal-sitio-title').textContent='Nuevo Sitio'; }
+  if (id === 'sitio')     { document.getElementById('sitio-name').value=''; document.getElementById('sitio-edit-id').value=''; document.getElementById('sitio-ubicacion').value=''; document.getElementById('modal-sitio-title').textContent='Nuevo Sitio'; }
   if (id === 'cliente')   { document.getElementById('cliente-name').value=''; document.getElementById('cliente-edit-id').value=''; document.getElementById('modal-cliente-title').textContent='Nuevo Cliente'; }
 }
 
@@ -1681,19 +1714,20 @@ async function saveCuadrilla() {
 }
 
 async function saveSitio() {
-  const name = document.getElementById('sitio-name').value.trim();
+  const name      = document.getElementById('sitio-name').value.trim();
   const clienteId = document.getElementById('sitio-client').value;
-  const editId = document.getElementById('sitio-edit-id').value;
+  const ubicacion = document.getElementById('sitio-ubicacion').value;
+  const editId    = document.getElementById('sitio-edit-id').value;
   if (!name) { toast('Ingresá un nombre', 'error'); return; }
   try {
-    const result = await apiPost('saveSitio', { id: name, clienteId, oldId: editId });
+    const result = await apiPost('saveSitio', { id: name, clienteId, ubicacion, oldId: editId });
     if (result.ok) {
       if (editId) {
         const i = STATE.sitios.findIndex(s => s.id === editId);
-        if (i>-1) { STATE.sitios[i].id = name; STATE.sitios[i].clienteId = clienteId; }
+        if (i>-1) { STATE.sitios[i].id = name; STATE.sitios[i].clienteId = clienteId; STATE.sitios[i].ubicacion = ubicacion; }
       } else {
         if (STATE.sitios.find(s => s.id === name)) { toast('Ya existe ese sitio', 'error'); return; }
-        STATE.sitios.push({ id: name, clienteId });
+        STATE.sitios.push({ id: name, clienteId, ubicacion });
       }
       closeModal('sitio');
       renderSitiosGrid();
@@ -1747,7 +1781,10 @@ function editSitio(id) {
   document.getElementById('modal-sitio-title').textContent = 'Editar Sitio';
   updateClienteSelect();
   openModal('sitio');
-  setTimeout(() => { document.getElementById('sitio-client').value = sitio.clienteId || ''; }, 50);
+  setTimeout(() => {
+    document.getElementById('sitio-client').value = sitio.clienteId || '';
+    document.getElementById('sitio-ubicacion').value = sitio.ubicacion || '';
+  }, 50);
 }
 function editCliente(id) {
   const c = STATE.clientes.find(x => x.id === id);
