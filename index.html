@@ -640,11 +640,26 @@
 
 <!-- New Cuadrilla modal -->
 <div class="modal-overlay" id="modal-cuadrilla">
-  <div class="modal glass-solid">
+  <div class="modal glass-solid" style="max-width:520px">
     <div class="modal-title" id="modal-cuadrilla-title">Nueva Cuadrilla</div>
+    <div class="form-row">
+      <div class="form-group" style="flex:2">
+        <label>ID / Nombre de Cuadrilla</label>
+        <input type="text" id="cuadrilla-name" placeholder="Ej: Tera 1, Vieira…">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label>Tipo</label>
+        <select id="cuadrilla-tipo">
+          <option value="Propia">Propia</option>
+          <option value="Externa">Externa</option>
+        </select>
+      </div>
+    </div>
     <div class="form-group">
-      <label>ID / Nombre de Cuadrilla</label>
-      <input type="text" id="cuadrilla-name" placeholder="Ej: Tera 1, Vieira…">
+      <label>Integrantes <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--text2)">(uno por línea o separados por coma)</span></label>
+      <textarea id="cuadrilla-integrantes" rows="4" placeholder="Juan Pérez&#10;María García&#10;Carlos López"
+        style="width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid rgba(200,210,240,0.6);background:rgba(255,255,255,0.7);font-family:var(--font);font-size:13.5px;color:var(--text);outline:none;resize:vertical;transition:border-color .15s"
+        onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='rgba(200,210,240,0.6)'"></textarea>
     </div>
     <input type="hidden" id="cuadrilla-edit-id">
     <div class="modal-actions">
@@ -707,6 +722,17 @@
   </div>
 </div>
 
+
+<!-- ── ASSIGNMENT DETAIL MODAL ─────────────────────────────────── -->
+<div class="modal-overlay" id="modal-asig-detail">
+  <div class="modal glass-solid" style="max-width:500px;max-height:80vh;overflow-y:auto">
+    <div class="modal-title" id="asig-detail-title">Asignaciones</div>
+    <div id="asig-detail-body" style="margin-bottom:20px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="closeModal('asig-detail')">Cerrar</button>
+    </div>
+  </div>
+</div>
 
 <!-- ── TOAST ────────────────────────────────────────────────────── -->
 <div id="toast-container"></div>
@@ -977,8 +1003,9 @@ function renderGantt() {
     // Label cell
     const tdLabel = document.createElement('td');
     tdLabel.className = 'td-label';
+    const cuadColor = (cuad.tipo === 'Externa') ? '#ec4899' : '#4f6ef7';
     tdLabel.innerHTML = `
-      <div style="width:10px;height:10px;border-radius:50%;background:var(--accent);flex-shrink:0"></div>
+      <div style="width:10px;height:10px;border-radius:50%;background:${cuadColor};box-shadow:0 0 6px ${cuadColor}66;flex-shrink:0"></div>
       <span style="font-weight:600;font-size:13px">${escHtml(cuad.id)}</span>
     `;
     tr.appendChild(tdLabel);
@@ -1115,18 +1142,110 @@ function renderCuadrillasGrid() {
   }
   grid.innerHTML = STATE.cuadrillas.map(c => {
     const asigCount = STATE.asignaciones.filter(a => a.cuadrillaId === c.id).length;
+    const isPropia = (c.tipo || 'Propia') === 'Propia';
+    const dotColor = isPropia ? '#4f6ef7' : '#ec4899';
+    const barColor = isPropia ? '#4f6ef7' : '#ec4899';
+    const tipoLabel = isPropia ? 'Propia' : 'Externa';
+    const tipoStyle = isPropia
+      ? 'background:rgba(79,110,247,0.12);color:#4f6ef7;border:1px solid rgba(79,110,247,0.25)'
+      : 'background:rgba(236,72,153,0.12);color:#ec4899;border:1px solid rgba(236,72,153,0.25)';
+    const integrantesList = (c.integrantes || []).length > 0
+      ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">
+          ${c.integrantes.map(i => `<span style="font-size:11px;padding:2px 8px;border-radius:50px;background:rgba(100,120,200,0.1);border:1px solid rgba(100,120,200,0.2);color:var(--text2)">${escHtml(i)}</span>`).join('')}
+        </div>`
+      : `<div style="margin-top:8px;font-size:11px;color:var(--text2);opacity:.6">Sin integrantes cargados</div>`;
+
     return `
     <div class="card glass" data-id="${escHtml(c.id)}">
-      <div class="card-color-bar" style="background:var(--accent)"></div>
-      <div class="card-icon">👷</div>
-      <div class="card-name">${escHtml(c.id)}</div>
-      <div class="card-sub">${asigCount} asignacion${asigCount !== 1 ? 'es' : ''}</div>
-      <div class="card-actions">
+      <div class="card-color-bar" style="background:${barColor}"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;margin-top:4px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:12px;height:12px;border-radius:50%;background:${dotColor};box-shadow:0 0 8px ${dotColor}55;flex-shrink:0;margin-top:2px"></div>
+          <div class="card-name" style="margin-bottom:0">${escHtml(c.id)}</div>
+        </div>
+        <span style="font-size:11px;padding:3px 10px;border-radius:50px;font-weight:600;${tipoStyle}">${tipoLabel}</span>
+      </div>
+      <div style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--accent);font-weight:500;margin-top:2px;padding:3px 0;border-bottom:1px dashed rgba(79,110,247,0.3)"
+           onclick="showAsigDetail('${escHtml(c.id)}')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        ${asigCount} asignacion${asigCount !== 1 ? 'es' : ''}
+      </div>
+      ${integrantesList}
+      <div class="card-actions" style="margin-top:14px">
         <button class="btn btn-sm" onclick="editCuadrilla('${escHtml(c.id)}')">Editar</button>
         <button class="btn btn-sm btn-danger" onclick="confirmDelete('cuadrilla','${escHtml(c.id)}')">Eliminar</button>
       </div>
     </div>`;
   }).join('');
+}
+
+function showAsigDetail(cuadrillaId) {
+  const asigs = STATE.asignaciones
+    .filter(a => a.cuadrillaId.trim() === cuadrillaId.trim())
+    .sort((a,b) => a.fecha.localeCompare(b.fecha));
+
+  document.getElementById('asig-detail-title').textContent = 'Asignaciones — ' + cuadrillaId;
+
+  if (!asigs.length) {
+    document.getElementById('asig-detail-body').innerHTML =
+      '<p style="color:var(--text2);font-size:13.5px">No hay asignaciones registradas.</p>';
+    openModal('asig-detail');
+    return;
+  }
+
+  // Group by sitio + consecutive date ranges
+  function getISOWeek(d) {
+    const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+    return Math.ceil((((tmp - yearStart) / 86400000) + 1) / 7);
+  }
+
+  // Group consecutive days per sitio into ranges
+  const groups = [];
+  let cur = null;
+  asigs.forEach(a => {
+    const d = new Date(a.fecha + 'T00:00:00');
+    const week = 'W' + String(getISOWeek(d)).padStart(2,'0');
+    if (cur && cur.sitioId === a.sitioId && cur.week === week) {
+      // check if consecutive
+      const prevD = new Date(cur.lastFecha + 'T00:00:00');
+      prevD.setDate(prevD.getDate() + 1);
+      if (fmtDate(prevD) === a.fecha) {
+        cur.lastFecha = a.fecha;
+        return;
+      }
+    }
+    if (cur) groups.push(cur);
+    cur = { sitioId: a.sitioId, week, firstFecha: a.fecha, lastFecha: a.fecha };
+  });
+  if (cur) groups.push(cur);
+
+  function fmt(f) {
+    const p = f.split('-'); return p[2]+'/'+p[1];
+  }
+
+  const cliente = (sitioId) => {
+    const s = STATE.sitios.find(x => x.id === sitioId);
+    const c = s ? STATE.clientes.find(x => x.id === s.clienteId) : null;
+    return c ? c.color : '#9ca3af';
+  };
+
+  const html = groups.map(g => {
+    const color = cliente(g.sitioId);
+    const range = g.firstFecha === g.lastFecha
+      ? fmt(g.firstFecha)
+      : fmt(g.firstFecha) + ' al ' + fmt(g.lastFecha);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;margin-bottom:6px;background:rgba(255,255,255,0.6);border:1px solid rgba(200,210,240,0.5)">
+      <div style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></div>
+      <div style="font-weight:600;font-size:13px;min-width:90px">${escHtml(g.sitioId)}</div>
+      <div style="font-size:12px;color:var(--accent);font-weight:600;min-width:36px">${g.week}</div>
+      <div style="font-size:12px;color:var(--text2)">${range}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('asig-detail-body').innerHTML = html;
+  openModal('asig-detail');
 }
 
 function renderSitiosGrid() {
@@ -1271,7 +1390,7 @@ function updateSitioOptions() {
 function closeModal(id) {
   document.getElementById('modal-' + id).classList.remove('open');
   // Reset fields
-  if (id === 'cuadrilla') { document.getElementById('cuadrilla-name').value=''; document.getElementById('cuadrilla-edit-id').value=''; document.getElementById('modal-cuadrilla-title').textContent='Nueva Cuadrilla'; }
+  if (id === 'cuadrilla') { document.getElementById('cuadrilla-name').value=''; document.getElementById('cuadrilla-edit-id').value=''; document.getElementById('cuadrilla-tipo').value='Propia'; document.getElementById('cuadrilla-integrantes').value=''; document.getElementById('modal-cuadrilla-title').textContent='Nueva Cuadrilla'; }
   if (id === 'sitio')     { document.getElementById('sitio-name').value=''; document.getElementById('sitio-edit-id').value=''; document.getElementById('modal-sitio-title').textContent='Nuevo Sitio'; }
   if (id === 'cliente')   { document.getElementById('cliente-name').value=''; document.getElementById('cliente-edit-id').value=''; document.getElementById('modal-cliente-title').textContent='Nuevo Cliente'; }
 }
@@ -1313,17 +1432,26 @@ async function doSaveAssignment(cuadrillaId, sitioId, dates) {
 
 async function saveCuadrilla() {
   const name = document.getElementById('cuadrilla-name').value.trim();
+  const tipo = document.getElementById('cuadrilla-tipo').value;
+  const integrantesRaw = document.getElementById('cuadrilla-integrantes').value;
   const editId = document.getElementById('cuadrilla-edit-id').value;
   if (!name) { toast('Ingresá un nombre', 'error'); return; }
+
+  // Parse integrantes: split by newline or comma
+  const integrantes = integrantesRaw
+    .split(/[\n,]+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
   try {
-    const result = await apiPost('saveCuadrilla', { id: name, oldId: editId });
+    const result = await apiPost('saveCuadrilla', { id: name, tipo, integrantes, oldId: editId });
     if (result.ok) {
       if (editId) {
         const i = STATE.cuadrillas.findIndex(c => c.id === editId);
-        if (i>-1) STATE.cuadrillas[i].id = name;
+        if (i>-1) { STATE.cuadrillas[i].id = name; STATE.cuadrillas[i].tipo = tipo; STATE.cuadrillas[i].integrantes = integrantes; }
       } else {
         if (STATE.cuadrillas.find(c => c.id === name)) { toast('Ya existe esa cuadrilla', 'error'); return; }
-        STATE.cuadrillas.push({ id: name });
+        STATE.cuadrillas.push({ id: name, tipo, integrantes });
       }
       closeModal('cuadrilla');
       renderCuadrillasGrid();
@@ -1383,8 +1511,12 @@ async function saveCliente() {
    EDIT + DELETE
 ═══════════════════════════════════════════════════════════ */
 function editCuadrilla(id) {
+  const cuad = STATE.cuadrillas.find(c => c.id === id);
+  if (!cuad) return;
   document.getElementById('cuadrilla-name').value = id;
   document.getElementById('cuadrilla-edit-id').value = id;
+  document.getElementById('cuadrilla-tipo').value = cuad.tipo || 'Propia';
+  document.getElementById('cuadrilla-integrantes').value = (cuad.integrantes || []).join('\n');
   document.getElementById('modal-cuadrilla-title').textContent = 'Editar Cuadrilla';
   openModal('cuadrilla');
 }
