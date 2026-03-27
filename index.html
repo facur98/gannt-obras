@@ -492,7 +492,13 @@
       <div class="gantt-toolbar">
         <label>Filtrar cliente:</label>
         <select id="filter-client" onchange="renderGantt()">
-          <option value="">Todos</option>
+          <option value="">Todos los clientes</option>
+        </select>
+        <label>Cuadrilla:</label>
+        <select id="filter-tipo" onchange="renderGantt()">
+          <option value="">Todas</option>
+          <option value="Propia">Propias</option>
+          <option value="Externa">Externas</option>
         </select>
         <label>Desde:</label>
         <input type="date" id="filter-date-from" onchange="renderGantt()">
@@ -522,6 +528,12 @@
     <div class="page-header">
       <div class="page-title">Cuadrillas <small>Equipos de trabajo registrados</small></div>
       <div class="page-actions">
+        <select id="cuad-filter-tipo" onchange="renderCuadrillasGrid()"
+          style="padding:8px 14px;border-radius:50px;border:1px solid rgba(200,210,240,0.7);background:rgba(255,255,255,0.65);font-family:var(--font);font-size:13px;color:var(--text);outline:none;backdrop-filter:blur(8px)">
+          <option value="">Todas</option>
+          <option value="Propia">Propias</option>
+          <option value="Externa">Externas</option>
+        </select>
         <button class="btn btn-primary" onclick="openModal('cuadrilla')">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Nueva Cuadrilla
@@ -536,6 +548,10 @@
     <div class="page-header">
       <div class="page-title">Sitios <small>Obras y ubicaciones</small></div>
       <div class="page-actions">
+        <select id="sitios-filter-client" onchange="renderSitiosGrid()"
+          style="padding:8px 14px;border-radius:50px;border:1px solid rgba(200,210,240,0.7);background:rgba(255,255,255,0.65);font-family:var(--font);font-size:13px;color:var(--text);outline:none;backdrop-filter:blur(8px)">
+          <option value="">Todos los clientes</option>
+        </select>
         <button class="btn btn-primary" onclick="openModal('sitio')">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Nuevo Sitio
@@ -985,17 +1001,18 @@ function renderGantt() {
 
   // Rows = cuadrillas × sitios grouped
   // Layout: per cuadrilla row, cells show which sitio is assigned per day
-  // Filter cuadrillas: if client selected, show only cuadrillas with assignments in those sitios
+  // Filter cuadrillas: by client and/or tipo
+  const tipoFilter = document.getElementById('filter-tipo') ? document.getElementById('filter-tipo').value : '';
   const sitioIdsForClient = clientFilter
     ? STATE.sitios.filter(s => s.clienteId === clientFilter).map(s => s.id)
     : null;
-  const cuadrillasFilt = clientFilter
-    ? STATE.cuadrillas.filter(cuad =>
-        STATE.asignaciones.some(a =>
-          a.cuadrillaId.trim() === cuad.id.trim() && sitioIdsForClient.includes(a.sitioId.trim())
-        )
-      )
-    : STATE.cuadrillas;
+  let cuadrillasFilt = STATE.cuadrillas;
+  if (tipoFilter) cuadrillasFilt = cuadrillasFilt.filter(c => (c.tipo || 'Propia') === tipoFilter);
+  if (clientFilter) cuadrillasFilt = cuadrillasFilt.filter(cuad =>
+    STATE.asignaciones.some(a =>
+      a.cuadrillaId.trim() === cuad.id.trim() && sitioIdsForClient.includes(a.sitioId.trim())
+    )
+  );
 
   cuadrillasFilt.forEach(cuad => {
     const tr = document.createElement('tr');
@@ -1135,12 +1152,14 @@ async function ctxClear() {
    CARDS GRIDS
 ═══════════════════════════════════════════════════════════ */
 function renderCuadrillasGrid() {
+  const tipoFilt = document.getElementById('cuad-filter-tipo') ? document.getElementById('cuad-filter-tipo').value : '';
+  const cuads = tipoFilt ? STATE.cuadrillas.filter(c => (c.tipo||'Propia') === tipoFilt) : STATE.cuadrillas;
   const grid = document.getElementById('cuadrillas-grid');
-  if (!STATE.cuadrillas.length) {
+  if (!cuads.length) {
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">👷</div><p>No hay cuadrillas registradas</p><button class="btn btn-primary" onclick="openModal('cuadrilla')">Agregar primera cuadrilla</button></div>`;
     return;
   }
-  grid.innerHTML = STATE.cuadrillas.map(c => {
+  grid.innerHTML = cuads.map(c => {
     const asigCount = STATE.asignaciones.filter(a => a.cuadrillaId === c.id).length;
     const isPropia = (c.tipo || 'Propia') === 'Propia';
     const dotColor = isPropia ? '#4f6ef7' : '#ec4899';
@@ -1249,27 +1268,112 @@ function showAsigDetail(cuadrillaId) {
 }
 
 function renderSitiosGrid() {
+  // Populate cliente filter options
+  const filterEl = document.getElementById('sitios-filter-client');
+  if (filterEl) {
+    const curVal = filterEl.value;
+    filterEl.innerHTML = '<option value="">Todos los clientes</option>';
+    STATE.clientes.forEach(c => {
+      const o = document.createElement('option'); o.value = c.id; o.textContent = c.id; filterEl.appendChild(o);
+    });
+    filterEl.value = curVal;
+  }
+  const clientFilt = filterEl ? filterEl.value : '';
+
   const grid = document.getElementById('sitios-grid');
-  if (!STATE.sitios.length) {
+  let sitios = clientFilt ? STATE.sitios.filter(s => s.clienteId === clientFilt) : STATE.sitios;
+
+  if (!sitios.length) {
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📍</div><p>No hay sitios registrados</p><button class="btn btn-primary" onclick="openModal('sitio')">Agregar primer sitio</button></div>`;
     return;
   }
-  grid.innerHTML = STATE.sitios.map(s => {
+
+  const today = todayStr();
+
+  grid.innerHTML = sitios.map(s => {
     const cliente = STATE.clientes.find(c => c.id === s.clienteId);
     const color = cliente ? cliente.color : '#9ca3af';
+
+    // Find all assignments for this sitio
+    const asigsSitio = STATE.asignaciones
+      .filter(a => a.sitioId.trim() === s.id.trim())
+      .sort((a,b) => a.fecha.localeCompare(b.fecha));
+
+    // Determine status: upcoming / en curso / finalizado
+    const firstDate = asigsSitio.length ? asigsSitio[0].fecha : null;
+    const lastDate  = asigsSitio.length ? asigsSitio[asigsSitio.length-1].fecha : null;
+
+    let statusBadge = '';
+    if (asigsSitio.length) {
+      if (lastDate < today) {
+        // All assignments in the past → Finalizado
+        statusBadge = `<div style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:50px;font-size:11.5px;font-weight:600;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.35);color:#16a34a;backdrop-filter:blur(8px)">✓ Finalizado</div>`;
+      } else if (firstDate <= today && today <= lastDate) {
+        // Currently active → En curso
+        statusBadge = `<div style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:50px;font-size:11.5px;font-weight:600;background:rgba(234,179,8,0.15);border:1px solid rgba(234,179,8,0.4);color:#b45309;backdrop-filter:blur(8px)">● En curso</div>`;
+      } else {
+        // Future → A iniciar en X días
+        const diff = Math.ceil((new Date(firstDate+'T00:00:00') - new Date(today+'T00:00:00')) / 86400000);
+        statusBadge = `<div style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:50px;font-size:11.5px;font-weight:600;background:rgba(249,115,22,0.13);border:1px solid rgba(249,115,22,0.35);color:#c2410c;backdrop-filter:blur(8px)">◷ A iniciar en ${diff} día${diff!==1?'s':''}</div>`;
+      }
+    }
+
+    // Build assignment info lines (grouped per cuadrilla)
+    function getISOWeek(d) {
+      const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+      const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+      return Math.ceil((((tmp - yearStart) / 86400000) + 1) / 7);
+    }
+    function fmt(f) { const p=f.split('-'); return p[2]+'/'+p[1]; }
+
+    // Group by cuadrilla → week ranges
+    const byCuad = {};
+    asigsSitio.forEach(a => {
+      if (!byCuad[a.cuadrillaId]) byCuad[a.cuadrillaId] = [];
+      byCuad[a.cuadrillaId].push(a.fecha);
+    });
+
+    const asigLines = lastDate && lastDate >= today
+      ? Object.entries(byCuad).map(([cuadId, fechas]) => {
+          fechas.sort();
+          const w = 'W'+String(getISOWeek(new Date(fechas[0]+'T00:00:00'))).padStart(2,'0');
+          const cuad = STATE.cuadrillas.find(c => c.id === cuadId);
+          const cuadColor = cuad && cuad.tipo === 'Externa' ? '#ec4899' : '#4f6ef7';
+          const range = fechas.length === 1 ? fmt(fechas[0]) : fmt(fechas[0]) + ' al ' + fmt(fechas[fechas.length-1]);
+          return `<div style="display:flex;align-items:center;gap:6px;margin-top:5px;font-size:11.5px;color:var(--text2)">
+            <div style="width:8px;height:8px;border-radius:50%;background:${cuadColor};flex-shrink:0"></div>
+            <span style="font-weight:600;color:var(--text)">${escHtml(cuadId)}</span>
+            <span style="color:var(--accent);font-weight:600">${w}</span>
+            <span>${range}</span>
+          </div>`;
+        }).join('')
+      : '';
+
     return `
-    <div class="card glass" data-id="${escHtml(s.id)}">
+    <div class="card glass" data-id="${escHtml(s.id)}" style="position:relative;padding-top:20px">
       <div class="card-color-bar" style="background:${color}"></div>
-      <div class="card-icon">📍</div>
-      <div class="card-name">${escHtml(s.id)}</div>
-      <div class="card-sub" style="display:flex;align-items:center;gap:6px">
+      <!-- Edit + Delete buttons top-right -->
+      <div style="position:absolute;top:14px;right:14px;display:flex;gap:6px;align-items:center">
+        <button onclick="editSitio('${escHtml(s.id)}')" title="Editar"
+          style="width:30px;height:30px;border-radius:50%;border:1px solid rgba(200,210,240,0.7);background:rgba(255,255,255,0.6);backdrop-filter:blur(8px);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;box-shadow:0 2px 8px rgba(100,120,200,0.1)"
+          onmouseover="this.style.background='rgba(255,255,255,0.9)'" onmouseout="this.style.background='rgba(255,255,255,0.6)'">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button onclick="confirmDelete('sitio','${escHtml(s.id)}')" title="Eliminar"
+          style="width:30px;height:30px;border-radius:50%;border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.1);backdrop-filter:blur(8px);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;box-shadow:0 2px 8px rgba(239,68,68,0.1)"
+          onmouseover="this.style.background='rgba(239,68,68,0.2)'" onmouseout="this.style.background='rgba(239,68,68,0.1)'">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <!-- Card content -->
+      <div class="card-name" style="padding-right:72px">${escHtml(s.id)}</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:4px;margin-bottom:8px">
         <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
-        ${cliente ? escHtml(cliente.id) : '<em>Sin cliente</em>'}
+        <span style="font-size:12px;color:var(--text2)">${cliente ? escHtml(cliente.id) : '<em>Sin cliente</em>'}</span>
       </div>
-      <div class="card-actions">
-        <button class="btn btn-sm" onclick="editSitio('${escHtml(s.id)}')">Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="confirmDelete('sitio','${escHtml(s.id)}')">Eliminar</button>
-      </div>
+      ${statusBadge ? '<div style="margin-bottom:8px">' + statusBadge + '</div>' : ''}
+      ${asigLines}
     </div>`;
   }).join('');
 }
@@ -1609,15 +1713,26 @@ function setSyncStatus(state, text) {
 }
 
 function populateFilters() {
+  // Gantt client filter
   const sel = document.getElementById('filter-client');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">Todos los clientes</option>';
-  STATE.clientes.forEach(c => {
-    const o = document.createElement('option');
-    o.value = c.id; o.textContent = c.id;
-    sel.appendChild(o);
-  });
-  sel.value = cur;
+  if (sel) {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Todos los clientes</option>';
+    STATE.clientes.forEach(c => {
+      const o = document.createElement('option'); o.value = c.id; o.textContent = c.id; sel.appendChild(o);
+    });
+    sel.value = cur;
+  }
+  // Sitios client filter
+  const sel2 = document.getElementById('sitios-filter-client');
+  if (sel2) {
+    const cur2 = sel2.value;
+    sel2.innerHTML = '<option value="">Todos los clientes</option>';
+    STATE.clientes.forEach(c => {
+      const o = document.createElement('option'); o.value = c.id; o.textContent = c.id; sel2.appendChild(o);
+    });
+    sel2.value = cur2;
+  }
 }
 
 function updateSelects() {
