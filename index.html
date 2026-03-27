@@ -707,27 +707,6 @@
   </div>
 </div>
 
-<!-- ── SHIFT MODAL ─────────────────────────────────────────────── -->
-<div class="modal-overlay" id="modal-shift">
-  <div class="modal glass-solid" style="max-width:500px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-      <div style="width:40px;height:40px;border-radius:12px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">⚠️</div>
-      <div class="modal-title" style="margin-bottom:0;font-size:18px">Conflicto de asignación</div>
-    </div>
-    <div style="font-size:13.5px;color:var(--text2);line-height:1.8;margin-bottom:24px;padding:14px;background:rgba(245,158,11,0.07);border-radius:10px;border:1px solid rgba(245,158,11,0.2)" id="shift-msg">
-    </div>
-    <div class="modal-actions" style="justify-content:center;gap:16px">
-      <button class="btn" id="shift-cancel-btn" onclick="closeModal('shift')"
-        style="background:linear-gradient(135deg,rgba(239,68,68,0.80),rgba(220,38,38,0.75));color:#fff;border-color:rgba(255,255,255,0.3);box-shadow:0 6px 24px rgba(239,68,68,0.35),inset 0 1px 0 rgba(255,255,255,0.25);min-width:130px;padding:11px 22px;font-size:14px;">
-        ✕ Cancelar
-      </button>
-      <button class="btn" id="shift-confirm-btn"
-        style="background:linear-gradient(135deg,rgba(34,197,94,0.85),rgba(22,163,74,0.80));color:#fff;border-color:rgba(255,255,255,0.4);box-shadow:0 6px 24px rgba(34,197,94,0.35),inset 0 1px 0 rgba(255,255,255,0.3);min-width:160px;padding:11px 22px;font-size:14px;">
-        ✓ Desplazar y confirmar
-      </button>
-    </div>
-  </div>
-</div>
 
 <!-- ── TOAST ────────────────────────────────────────────────────── -->
 <div id="toast-container"></div>
@@ -1233,27 +1212,52 @@ function updateSitioOptions() {
     }
   }
 
+  // Dates where this cuadrilla already has ANY sitio assigned
+  const cuadBusyDates = selCuad ? rangeDates.filter(fd =>
+    STATE.asignaciones.find(a =>
+      a.cuadrillaId.trim() === selCuad.trim() && a.fecha.trim() === fd
+    )
+  ) : [];
+
   STATE.sitios.forEach(s => {
     const o = document.createElement('option');
     o.value = s.id;
 
-    // Find conflicting dates: cuadrilla has a DIFFERENT sitio on those days
-    let conflictDates = [];
-    if (selCuad && rangeDates.length) {
-      conflictDates = rangeDates.filter(fd =>
-        STATE.asignaciones.find(a =>
-          a.cuadrillaId.trim() === selCuad.trim() &&
-          a.fecha.trim() === fd &&
-          a.sitioId.trim() !== s.id.trim()
-        )
-      );
+    if (!selCuad || rangeDates.length === 0) {
+      o.textContent = s.id;
+      ss.appendChild(o);
+      return;
     }
 
-    if (conflictDates.length > 0) {
-      // SHOW as selectable but with a warning indicator
-      o.textContent = '⚠️ ' + s.id + ' (conflicto en ' + conflictDates.length + ' día/s → se desplazará)';
-      o.style.color = '#b45309';
-      o.dataset.hasConflict = 'true';
+    // Rule 1: cuadrilla already has a different sitio on some of these dates
+    const solapaDates = cuadBusyDates.filter(fd => {
+      const existing = STATE.asignaciones.find(a =>
+        a.cuadrillaId.trim() === selCuad.trim() &&
+        a.fecha.trim() === fd &&
+        a.sitioId.trim() !== s.id.trim()
+      );
+      return !!existing;
+    });
+
+    // Rule 2: this sitio is already assigned to a DIFFERENT cuadrilla on any of these dates
+    let otraCuadrilla = null;
+    for (const fd of rangeDates) {
+      const conflict = STATE.asignaciones.find(a =>
+        a.sitioId.trim() === s.id.trim() &&
+        a.fecha.trim() === fd &&
+        a.cuadrillaId.trim() !== selCuad.trim()
+      );
+      if (conflict) { otraCuadrilla = conflict.cuadrillaId; break; }
+    }
+
+    if (solapaDates.length > 0) {
+      o.disabled = true;
+      o.textContent = s.id + ' — se solapa con otras asignaciones';
+      o.style.color = '#9ca3af';
+    } else if (otraCuadrilla) {
+      o.disabled = true;
+      o.textContent = s.id + ' — asignado a cuadrilla ' + otraCuadrilla;
+      o.style.color = '#9ca3af';
     } else {
       o.textContent = s.id;
     }
@@ -1261,6 +1265,7 @@ function updateSitioOptions() {
   });
 
   ss.value = curS;
+  if (ss.selectedOptions[0] && ss.selectedOptions[0].disabled) ss.value = '';
 }
 
 function closeModal(id) {
@@ -1274,9 +1279,6 @@ function closeModal(id) {
 /* ═══════════════════════════════════════════════════════════
    SAVE ACTIONS
 ═══════════════════════════════════════════════════════════ */
-// Pending shift context
-let _pendingShift = null;
-
 async function saveAssignment() {
   const cuadrillaId = document.getElementById('assign-cuadrilla').value;
   const sitioId     = document.getElementById('assign-sitio').value;
@@ -1288,48 +1290,6 @@ async function saveAssignment() {
   const dates = [];
   for (let d = new Date(from+'T00:00:00'); fmtDate(d) <= to; d.setDate(d.getDate()+1)) {
     dates.push(fmtDate(new Date(d)));
-  }
-
-  // Find ALL conflicts: dates where this cuadrilla has a different sitio
-  const conflicts = [];
-  dates.forEach(fecha => {
-    const existing = STATE.asignaciones.find(a =>
-      a.cuadrillaId.trim() === cuadrillaId.trim() &&
-      a.fecha.trim() === fecha &&
-      a.sitioId.trim() !== sitioId.trim()
-    );
-    if (existing && !conflicts.find(c => c.sitioId === existing.sitioId && c.fecha === fecha)) {
-      conflicts.push({ fecha, sitioId: existing.sitioId });
-    }
-  });
-
-  if (conflicts.length > 0) {
-    // Build readable conflict summary
-    // Group by sitioId
-    const bySitio = {};
-    conflicts.forEach(c => {
-      if (!bySitio[c.sitioId]) bySitio[c.sitioId] = [];
-      bySitio[c.sitioId].push(c.fecha);
-    });
-    const conflictLines = Object.entries(bySitio).map(([sid, fechas]) => {
-      const fechaStr = fechas.map(f => {
-        const parts = f.split('-');
-        return parts[2]+'/'+parts[1];
-      }).join(', ');
-      return `<strong>${sid}</strong> (${fechaStr})`;
-    }).join(' y ');
-
-    _pendingShift = { cuadrillaId, sitioId, dates, conflictFrom: conflicts[0].fecha };
-
-    // Update modal message with full detail
-    document.getElementById('shift-msg').innerHTML =
-      `En los días seleccionados ya tenés asignado: ${conflictLines} para la cuadrilla <strong>${cuadrillaId}</strong>.<br><br>
-      ¿Querés reemplazar esas fechas por <strong>${sitioId}</strong> y desplazar todas las tareas subsiguientes hacia la derecha?`;
-
-    document.getElementById('shift-confirm-btn').onclick = () => executeShiftAndAssign();
-    closeModal('assignment');
-    openModal('shift');
-    return;
   }
 
   await doSaveAssignment(cuadrillaId, sitioId, dates);
@@ -1349,55 +1309,6 @@ async function doSaveAssignment(cuadrillaId, sitioId, dates) {
       setTimeout(refreshAll, 4000);
     } else throw new Error(result.error);
   } catch(e) { toast('Error: ' + e.message, 'error'); }
-}
-
-async function executeShiftAndAssign() {
-  if (!_pendingShift) return;
-  closeModal('shift');
-  const { cuadrillaId, sitioId, dates, conflictFrom } = _pendingShift;
-  _pendingShift = null;
-
-  // How many days to shift = length of the new block
-  const shiftDays = dates.length;
-
-  // Collect all assignments for this cuadrilla from conflictFrom onwards (excluding the new dates)
-  const toShift = STATE.asignaciones
-    .filter(a => a.cuadrillaId.trim() === cuadrillaId.trim() && a.fecha >= conflictFrom)
-    .sort((a,b) => a.fecha.localeCompare(b.fecha));
-
-  // Build shifted assignments (from latest to earliest to avoid overwriting)
-  const shiftedGroups = {};
-  toShift.forEach(a => {
-    const newFecha = addDays(a.fecha, shiftDays);
-    if (!shiftedGroups[a.sitioId]) shiftedGroups[a.sitioId] = [];
-    shiftedGroups[a.sitioId].push({ old: a.fecha, new: newFecha, sitioId: a.sitioId });
-  });
-
-  // Delete old shifted assignments from state
-  toShift.forEach(a => {
-    const idx = STATE.asignaciones.findIndex(x => x.cuadrillaId === cuadrillaId && x.fecha === a.fecha && x.sitioId === a.sitioId);
-    if (idx > -1) STATE.asignaciones.splice(idx, 1);
-  });
-
-  // Save shifted assignments to Sheets — group by sitioId for efficiency
-  for (const [sid, items] of Object.entries(shiftedGroups)) {
-    const newFechas = items.map(i => i.new);
-    try {
-      await apiPost('setAsignaciones', { cuadrillaId, sitioId: sid, fechas: newFechas });
-      newFechas.forEach(f => STATE.asignaciones.push({ cuadrillaId, sitioId: sid, fecha: f }));
-    } catch(e) { toast('Error al desplazar: ' + e.message, 'error'); }
-  }
-
-  // Also delete old conflicting rows in Sheets
-  for (const a of toShift) {
-    try {
-      await apiPost('deleteAsignacion', { cuadrillaId, sitioId: a.sitioId, fecha: a.fecha });
-    } catch(e) { /* ignore if already replaced */ }
-  }
-
-  // Now save the new assignment
-  await doSaveAssignment(cuadrillaId, sitioId, dates);
-  toast('Tareas desplazadas y asignación guardada ✓', 'success');
 }
 
 async function saveCuadrilla() {
