@@ -1096,47 +1096,82 @@ function renderGantt() {
     `;
     tr.appendChild(tdLabel);
 
-    // Day cells
-    dates.forEach(d => {
+    // Day cells — merge consecutive days of same sitio into colspan blocks
+    // Pre-compute assignment for each date
+    const dayAsigs = dates.map(d => {
       const ds = fmtDate(d);
+      return STATE.asignaciones.find(a =>
+        a.cuadrillaId.trim() === cuad.id.trim() && a.fecha.trim() === ds.trim()
+        && (!clientFilter || sitioIdsForClient.includes(a.sitioId.trim()))
+      ) || null;
+    });
+
+    let i = 0;
+    while (i < dates.length) {
+      const d  = dates[i];
+      const ds = fmtDate(d);
+      const asig = dayAsigs[i];
+
+      // Count how many consecutive days share the same sitio (merge them)
+      let span = 1;
+      if (asig) {
+        while (
+          i + span < dates.length &&
+          dayAsigs[i + span] &&
+          dayAsigs[i + span].sitioId === asig.sitioId
+        ) span++;
+      }
+
       const td = document.createElement('td');
       td.className = 'gantt-cell';
-      if ([0,6].includes(d.getDay())) td.classList.add('weekend');
+      if ([0,6].includes(d.getDay()) && span === 1) td.classList.add('weekend');
       if (ds === today) td.classList.add('today-col');
       td.dataset.cuadrilla = cuad.id;
       td.dataset.fecha = ds;
 
-      // Find assignment for this cuadrilla + date
-      const asig = STATE.asignaciones.find(a => 
-        a.cuadrillaId.trim() === cuad.id.trim() && a.fecha.trim() === ds.trim()
-        && (!clientFilter || sitioIdsForClient.includes(a.sitioId.trim()))
-      );
+      if (span > 1) {
+        td.colSpan = span;
+        td.style.padding = '3px 4px';
+        // Remove right border on merged cell so it looks continuous
+        td.style.borderRight = '2px solid rgba(100,120,200,0.25)';
+      }
+
       if (asig) {
-        const sitio = STATE.sitios.find(s => s.id === asig.sitioId);
+        const sitio   = STATE.sitios.find(s => s.id === asig.sitioId);
         const cliente = sitio ? STATE.clientes.find(c => c.id === sitio.clienteId) : null;
-        const color = cliente ? cliente.color : '#6b7280';
+        const color   = cliente ? cliente.color : '#6b7280';
+
         const chip = document.createElement('div');
         chip.className = 'assignment-chip';
         chip.style.background = color;
+        chip.style.width = '100%';
+        chip.style.display = 'flex';
+        chip.style.alignItems = 'center';
+        chip.style.justifyContent = 'center';
+        chip.style.height = '28px';
+        chip.style.borderRadius = '7px';
+        chip.style.boxShadow = '0 2px 6px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.25)';
         chip.title = `${asig.sitioId}${cliente ? ' — ' + cliente.id : ''}`;
         chip.textContent = asig.sitioId;
         td.appendChild(chip);
       }
 
-      td.addEventListener('contextmenu', e => { e.preventDefault(); showCtx(e, cuad.id, ds, !!asig); });
+      // Events — attach to first date of block
+      const capturedAsig = asig;
+      const capturedDs   = ds;
+      td.addEventListener('contextmenu', e => { e.preventDefault(); showCtx(e, cuad.id, capturedDs, !!capturedAsig); });
       td.addEventListener('click', () => {
-        if (asig) {
-          // Click on assigned chip → show delete context menu
-          showCtx({ clientX: td.getBoundingClientRect().left + 20, clientY: td.getBoundingClientRect().bottom + 4 }, cuad.id, ds, true);
+        if (capturedAsig) {
+          showCtx({ clientX: td.getBoundingClientRect().left + 20, clientY: td.getBoundingClientRect().bottom + 4 }, cuad.id, capturedDs, true);
         } else {
-          // Empty cell → open assignment modal
-          prefillAssignment(cuad.id, ds);
+          prefillAssignment(cuad.id, capturedDs);
           openModal('assignment');
         }
       });
 
       tr.appendChild(td);
-    });
+      i += span;
+    }
 
     tbody.appendChild(tr);
   });
