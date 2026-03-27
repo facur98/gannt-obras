@@ -893,23 +893,32 @@ function renderGantt() {
   labelTh.innerHTML = '<div style="padding:6px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text2)">Sitio / Cuadrilla</div>';
   monthRow.appendChild(labelTh);
 
-  // Group by month
-  let monthGroups = [];
-  let curMonth = null, curCount = 0;
+  // Group by ISO week number
+  function getISOWeek(d) {
+    const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+    return Math.ceil((((tmp - yearStart) / 86400000) + 1) / 7);
+  }
+  let weekGroups = [];
+  let curWeek = null, curCount = 0;
   dates.forEach(d => {
-    const m = d.toLocaleDateString('es-AR', { month:'long', year:'numeric' });
-    if (m !== curMonth) {
-      if (curMonth) monthGroups.push({ label: curMonth, count: curCount });
-      curMonth = m; curCount = 1;
+    const w = 'W' + String(getISOWeek(d)).padStart(2, '0');
+    if (w !== curWeek) {
+      if (curWeek) weekGroups.push({ label: curWeek, count: curCount });
+      curWeek = w; curCount = 1;
     } else curCount++;
   });
-  if (curMonth) monthGroups.push({ label: curMonth, count: curCount });
+  if (curWeek) weekGroups.push({ label: curWeek, count: curCount });
 
-  monthGroups.forEach(({ label, count }) => {
+  weekGroups.forEach(({ label, count }, idx) => {
     const th = document.createElement('th');
     th.colSpan = count;
     th.className = 'th-month';
-    th.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+    // Alternating dark/light grey
+    th.style.background = idx % 2 === 0 ? 'rgba(180,190,210,0.55)' : 'rgba(210,218,235,0.55)';
+    th.style.color = idx % 2 === 0 ? '#2d3655' : '#5a6282';
+    th.textContent = label;
     monthRow.appendChild(th);
   });
   thead.appendChild(monthRow);
@@ -920,15 +929,25 @@ function renderGantt() {
   labelTh2.className = 'th-label';
   dayRow.appendChild(labelTh2);
 
-  dates.forEach(d => {
+  dates.forEach((d, idx) => {
     const th = document.createElement('th');
     th.className = 'th-day';
     const ds = fmtDate(d);
-    if ([0,6].includes(d.getDay())) th.classList.add('weekend');
+    const isWeekend = [0,6].includes(d.getDay());
+    if (isWeekend) th.classList.add('weekend');
     if (ds === today) th.classList.add('today-col');
-    const dayNum = d.getDate();
-    const dayName = d.toLocaleDateString('es-AR', { weekday:'narrow' });
-    th.innerHTML = `<div>${dayName}</div><div style="font-size:12px;font-weight:700">${dayNum}</div>`;
+    const dayNum = String(d.getDate()).padStart(2,'0');
+    const monthNum = String(d.getMonth()+1).padStart(2,'0');
+    // Alternating grey shades matching week columns
+    const weekIdx = weekGroups.findIndex(wg => {
+      // check if this date belongs to this week
+      const w = 'W' + String(getISOWeek(d)).padStart(2,'0');
+      return wg.label === w;
+    });
+    if (!isWeekend && ds !== today) {
+      th.style.background = weekIdx % 2 === 0 ? 'rgba(185,193,215,0.35)' : 'rgba(215,220,235,0.35)';
+    }
+    th.innerHTML = `<div style="font-size:9px;opacity:.75">${d.toLocaleDateString('es-AR',{weekday:'narrow'})}</div><div style="font-size:11px;font-weight:700;letter-spacing:.3px">${dayNum}/${monthNum}</div>`;
     dayRow.appendChild(th);
   });
   thead.appendChild(dayRow);
@@ -939,7 +958,19 @@ function renderGantt() {
 
   // Rows = cuadrillas × sitios grouped
   // Layout: per cuadrilla row, cells show which sitio is assigned per day
-  STATE.cuadrillas.forEach(cuad => {
+  // Filter cuadrillas: if client selected, show only cuadrillas with assignments in those sitios
+  const sitioIdsForClient = clientFilter
+    ? STATE.sitios.filter(s => s.clienteId === clientFilter).map(s => s.id)
+    : null;
+  const cuadrillasFilt = clientFilter
+    ? STATE.cuadrillas.filter(cuad =>
+        STATE.asignaciones.some(a =>
+          a.cuadrillaId.trim() === cuad.id.trim() && sitioIdsForClient.includes(a.sitioId.trim())
+        )
+      )
+    : STATE.cuadrillas;
+
+  cuadrillasFilt.forEach(cuad => {
     const tr = document.createElement('tr');
 
     // Label cell
@@ -964,6 +995,7 @@ function renderGantt() {
       // Find assignment for this cuadrilla + date
       const asig = STATE.asignaciones.find(a => 
         a.cuadrillaId.trim() === cuad.id.trim() && a.fecha.trim() === ds.trim()
+        && (!clientFilter || sitioIdsForClient.includes(a.sitioId.trim()))
       );
       if (asig) {
         const sitio = STATE.sitios.find(s => s.id === asig.sitioId);
@@ -1143,9 +1175,66 @@ function renderClientesGrid() {
    MODALS
 ═══════════════════════════════════════════════════════════ */
 function openModal(id) {
-  if (id === 'assignment') updateSelects();
+  if (id === 'assignment') {
+    updateSelects();
+    // Re-filter sitios when cuadrilla or dates change
+    ['assign-cuadrilla','assign-from','assign-to'].forEach(elId => {
+      const el = document.getElementById(elId);
+      el.onchange = () => updateSitioOptions();
+    });
+  }
   if (id === 'sitio') updateClienteSelect();
   document.getElementById('modal-' + id).classList.add('open');
+}
+
+function updateSitioOptions() {
+  const selCuad = document.getElementById('assign-cuadrilla').value;
+  const selFrom = document.getElementById('assign-from').value;
+  const selTo   = document.getElementById('assign-to').value;
+  const ss = document.getElementById('assign-sitio');
+  const curS = ss.value;
+  ss.innerHTML = '<option value="">— Seleccioná sitio —</option>';
+
+  // Build set of dates in range
+  const rangeDates = [];
+  if (selFrom && selTo) {
+    for (let d = new Date(selFrom+'T00:00:00'); fmtDate(d) <= selTo; d.setDate(d.getDate()+1)) {
+      rangeDates.push(fmtDate(new Date(d)));
+    }
+  }
+
+  STATE.sitios.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s.id;
+
+    // Check if this cuadrilla already has THIS sitio on any of these dates
+    // (allow re-assigning same sitio = edit)
+    // Block only if cuadrilla already has a DIFFERENT sitio on any of these dates
+    let alreadyTakenDates = [];
+    if (selCuad && rangeDates.length) {
+      alreadyTakenDates = rangeDates.filter(fd => {
+        const existing = STATE.asignaciones.find(a =>
+          a.cuadrillaId.trim() === selCuad.trim() &&
+          a.fecha.trim() === fd &&
+          a.sitioId.trim() !== s.id.trim()
+        );
+        return !!existing;
+      });
+    }
+
+    if (alreadyTakenDates.length > 0) {
+      o.disabled = true;
+      o.textContent = s.id + ' (ya asignada en ' + alreadyTakenDates.length + ' día/s)';
+      o.style.color = '#aaa';
+    } else {
+      o.textContent = s.id;
+    }
+    ss.appendChild(o);
+  });
+
+  ss.value = curS;
+  // If previously selected is now disabled, clear it
+  if (ss.selectedOptions[0] && ss.selectedOptions[0].disabled) ss.value = '';
 }
 function closeModal(id) {
   document.getElementById('modal-' + id).classList.remove('open');
@@ -1375,14 +1464,8 @@ function updateSelects() {
   });
   sc.value = curC;
 
-  // Assignment modal sitios
-  const ss = document.getElementById('assign-sitio');
-  const curS = ss.value;
-  ss.innerHTML = '<option value="">— Seleccioná sitio —</option>';
-  STATE.sitios.forEach(s => {
-    const o = document.createElement('option'); o.value = s.id; o.textContent = s.id; ss.appendChild(o);
-  });
-  ss.value = curS;
+  // Sitio options handled by updateSitioOptions() with smart filtering
+  updateSitioOptions();
 }
 
 function updateClienteSelect() {
