@@ -633,13 +633,20 @@
             <option value="Básico">Básico</option>
             <option value="Adicional">Adicional</option>
           </select>
+          <select class="form-select" id="sit-filtro-status" onchange="aplicarFiltrosSitios()">
+            <option value="">Todos los status</option>
+            <option value="Sin asignar">Sin asignar</option>
+            <option value="Proyectado">Proyectado</option>
+            <option value="Solicitado">Solicitado</option>
+            <option value="Facturado">Facturado</option>
+          </select>
         </div>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>ID Sitio</th><th>Provincia</th><th>Cliente</th><th>Concepto</th><th>N° PO</th><th>Total PO</th><th>Observación</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>ID Sitio</th><th>Provincia</th><th>Cliente</th><th>Concepto</th><th>N° PO</th><th>Total PO</th><th>Status</th><th>Observación</th><th>Acciones</th></tr></thead>
           <tbody id="tabla-sitios">
-            <tr><td colspan="8"><div class="empty-state"><span class="es-icon">📍</span><p>Sin sitios registrados.</p></div></td></tr>
+            <tr><td colspan="9"><div class="empty-state"><span class="es-icon">📍</span><p>Sin sitios registrados.</p></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -1210,7 +1217,7 @@ function showView(name, el) {
   if (name === 'dashboard')   actualizarDashboard();
   if (name === 'panel')       actualizarPanel();
   if (name === 'clientes')    renderClientes();
-  if (name === 'sitios')      { poblarSelect('sit-cliente'); renderSitios(); }
+  if (name === 'sitios')      { poblarSelect('sit-cliente'); aplicarFiltrosSitios(); }
   if (name === 'seguimiento') renderSeguimiento();
 }
 
@@ -1447,21 +1454,69 @@ async function guardarEdicionSitio() {
   finally { setLoading(false); }
 }
 
+function getSitStatus(sitioId) {
+  // Devuelve el status consolidado del sitio basado en sus líneas de seguimiento
+  const ls = lineas.filter(l => l.sitioId === sitioId);
+  if (!ls.length) return { label: 'Sin asignar', badge: 'badge-sin', color: 'rgba(150,160,190,0.15)', text: '#9aa0b8' };
+  // Prioridad: si alguna está Facturada mostrar % facturado, si hay Solicitada, Solicitado, si todo Proyectado
+  const facturadas  = ls.filter(l => l.estado === 'Facturado');
+  const solicitadas = ls.filter(l => l.estado === 'Solicitado');
+  const proyectadas = ls.filter(l => l.estado === 'Proyectado');
+  const pctFac  = facturadas.reduce((a,l) => a + l.pct, 0);
+  const pctSol  = solicitadas.reduce((a,l) => a + l.pct, 0);
+  const pctProy = proyectadas.reduce((a,l) => a + l.pct, 0);
+
+  if (facturadas.length && !solicitadas.length && !proyectadas.length) {
+    return { label: `Facturado ${pctFac}%`, badge: 'badge-green', color: 'rgba(45,212,191,0.12)', text: '#0d9488' };
+  }
+  if (facturadas.length) {
+    return { label: `${pctFac}% Facturado`, badge: 'badge-green', color: 'rgba(45,212,191,0.12)', text: '#0d9488' };
+  }
+  if (solicitadas.length) {
+    return { label: 'Solicitado', badge: 'badge-amber', color: 'rgba(251,191,36,0.12)', text: '#b45309' };
+  }
+  return { label: 'Proyectado', badge: 'badge-blue', color: 'rgba(79,128,255,0.12)', text: '#3a6bf0' };
+}
+
 function renderSitios(filtro = '', filtros = null) {
   const tbody = document.getElementById('tabla-sitios');
+
+  // Poblar select filtro clientes PRESERVANDO el valor actual
   const selCli = document.getElementById('sit-filtro-cliente');
   if (selCli) {
     const prev = selCli.value;
     selCli.innerHTML = '<option value="">Todos los clientes</option>';
     clientes.forEach(c => selCli.innerHTML += `<option value="${c.id}">${c.id}</option>`);
-    if (prev) selCli.value = prev;
+    if (prev) selCli.value = prev; // restaurar sin resetear
   }
+
+  // Leer filtros actuales del DOM si no se pasan explícitamente
+  if (!filtros && !filtro) {
+    filtros = {
+      texto:    (document.getElementById('sit-filtro-texto')?.value || '').toLowerCase(),
+      cliente:  document.getElementById('sit-filtro-cliente')?.value  || '',
+      provincia:document.getElementById('sit-filtro-provincia')?.value || '',
+      concepto: document.getElementById('sit-filtro-concepto')?.value  || '',
+      status:   document.getElementById('sit-filtro-status')?.value    || ''
+    };
+  }
+
   let lista = [...sitios];
   if (filtros) {
     if (filtros.texto)    lista = lista.filter(s => s.id.toLowerCase().includes(filtros.texto) || s.localidad.toLowerCase().includes(filtros.texto) || s.clienteId.toLowerCase().includes(filtros.texto));
     if (filtros.cliente)  lista = lista.filter(s => s.clienteId === filtros.cliente);
     if (filtros.provincia)lista = lista.filter(s => s.localidad  === filtros.provincia);
     if (filtros.concepto) lista = lista.filter(s => s.concepto   === filtros.concepto);
+    if (filtros.status) {
+      lista = lista.filter(s => {
+        const st = getSitStatus(s.id);
+        if (filtros.status === 'Sin asignar') return st.label === 'Sin asignar';
+        if (filtros.status === 'Proyectado')  return st.label === 'Proyectado';
+        if (filtros.status === 'Solicitado')  return st.label === 'Solicitado';
+        if (filtros.status === 'Facturado')   return st.label.includes('Facturado');
+        return true;
+      });
+    }
   } else if (filtro) {
     lista = lista.filter(s =>
       s.id.toLowerCase().includes(filtro.toLowerCase()) ||
@@ -1469,10 +1524,12 @@ function renderSitios(filtro = '', filtros = null) {
       s.clienteId.toLowerCase().includes(filtro.toLowerCase())
     );
   }
-  if (!lista.length) { tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><span class="es-icon">📍</span><p>Sin sitios que coincidan con los filtros.</p></div></td></tr>`; return; }
+
+  if (!lista.length) { tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><span class="es-icon">📍</span><p>Sin sitios que coincidan con los filtros.</p></div></td></tr>`; return; }
   tbody.innerHTML = lista.map(s => {
     const cli = getCli(s.clienteId);
     const cb  = s.concepto === 'Básico' ? 'badge-blue' : 'badge-violet';
+    const st  = getSitStatus(s.id);
     return `<tr
       onmouseenter="showSitTooltip(event,'${s.id}')"
       onmousemove="moveSitTooltip(event)"
@@ -1483,6 +1540,7 @@ function renderSitios(filtro = '', filtros = null) {
       <td><span class="badge ${cb}">${s.concepto}</span></td>
       <td style="font-size:12px;color:var(--text-mid);">${s.poNro||'—'}</td>
       <td style="font-weight:600;">${s.po ? fmt(s.po) : '—'}</td>
+      <td><span style="display:inline-block;padding:4px 11px;border-radius:20px;font-size:12px;font-weight:600;background:${st.color};color:${st.text};">${st.label}</span></td>
       <td style="color:var(--text-mid);font-size:12px;">${s.obs||'—'}</td>
       <td><span style="display:flex;align-items:center;justify-content:center;gap:6px;">
         <button class="btn btn-glass btn-sm" onclick="abrirProyectarSitio('${s.id}')" title="Proyectar en seguimiento" style="color:var(--accent-blue);font-size:11px;font-weight:700;padding:5px 9px;">+Seg</button>
@@ -1492,12 +1550,10 @@ function renderSitios(filtro = '', filtros = null) {
     </tr>`;
   }).join('');
 }
+
 function aplicarFiltrosSitios() {
-  const texto    = (document.getElementById('sit-filtro-texto')?.value || '').toLowerCase();
-  const cliente  = document.getElementById('sit-filtro-cliente')?.value || '';
-  const provincia= document.getElementById('sit-filtro-provincia')?.value || '';
-  const concepto = document.getElementById('sit-filtro-concepto')?.value || '';
-  renderSitios('', { texto, cliente, provincia, concepto });
+  // Lee los valores del DOM y llama a renderSitios — los filtros se leen dentro de renderSitios
+  renderSitios();
 }
 function filtrarSitios(v) { renderSitios(v); }
 async function eliminarSitio(id) {
