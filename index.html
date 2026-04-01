@@ -330,6 +330,10 @@
       animation: loadBar 2.8s ease forwards;
     }
     @keyframes loadBar { from { width: 0; } to { width: 100%; } }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(0.75); }
+    }
   </style>
 </head>
 <body>
@@ -340,6 +344,11 @@
     <div class="login-logo">T</div>
     <div class="login-title">Terabyte SRL</div>
     <div class="login-sub">Sistema de Gestión · Ingresá tus credenciales</div>
+    <!-- Estado de conexión con el servidor -->
+    <div id="login-conn-status" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-light);background:rgba(150,160,190,0.08);border:1px solid rgba(150,160,190,0.2);border-radius:8px;padding:8px 12px;margin-bottom:14px;">
+      <span id="login-conn-dot" style="width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0;animation:pulse-dot 1.2s infinite;"></span>
+      <span id="login-conn-text">Conectando con el servidor...</span>
+    </div>
     <div class="login-error" id="login-error"></div>
     <div class="form-group" style="margin-bottom:14px;">
       <label class="form-label">Usuario</label>
@@ -351,7 +360,7 @@
       <input class="form-input" id="login-pass" type="password" placeholder="Tu contraseña" autocomplete="current-password"
         onkeydown="if(event.key==='Enter') intentarLogin()" />
     </div>
-    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;" onclick="intentarLogin()" id="btn-login">
+    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;" onclick="intentarLogin()" id="btn-login" disabled>
       Ingresar
     </button>
     <div style="text-align:center;margin-top:18px;font-size:12px;color:var(--text-light);">
@@ -2501,8 +2510,41 @@ function cerrarSesion() {
   document.getElementById('screen-bienvenida').style.opacity = '1';
 }
 
-/* Init — mostrar login primero, NO cargar datos todavía */
-// cargarTodo() se llama después del login exitoso
+/* Init — hacer ping en background para "despertar" el Apps Script
+   mientras el usuario ve la pantalla de login */
+(async function pingServidor() {
+  const dot  = document.getElementById('login-conn-dot');
+  const txt  = document.getElementById('login-conn-text');
+  const btn  = document.getElementById('btn-login');
+  const t0   = Date.now();
+
+  try {
+    // Ping liviano — solo pide CLIENTES (mínimo de datos)
+    const res  = await fetch(`${API_URL}?sheet=CLIENTES`);
+    const data = await res.json();
+    const ms   = Date.now() - t0;
+
+    if (data.ok !== false) {
+      // Conexión OK
+      dot.style.background   = '#22c55e';
+      dot.style.animation    = 'none';
+      txt.textContent        = `Servidor conectado (${ms < 1000 ? ms + 'ms' : (ms/1000).toFixed(1) + 's'})`;
+      document.getElementById('login-conn-status').style.borderColor = 'rgba(34,197,94,0.3)';
+      document.getElementById('login-conn-status').style.background  = 'rgba(34,197,94,0.06)';
+      btn.disabled = false; // habilitar botón recién aquí
+    } else {
+      throw new Error(data.error || 'Respuesta inválida');
+    }
+  } catch(e) {
+    dot.style.background = '#f87171';
+    dot.style.animation  = 'none';
+    txt.textContent      = 'Error de conexión — Contactar al administrador';
+    document.getElementById('login-conn-status').style.borderColor = 'rgba(248,113,113,0.3)';
+    document.getElementById('login-conn-status').style.background  = 'rgba(248,113,113,0.06)';
+    btn.disabled = false; // igual habilitar para que pueda intentar
+    console.error('Ping falló:', e);
+  }
+})();
 </script>
 </body>
 </html>
