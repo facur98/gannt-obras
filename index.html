@@ -1042,14 +1042,14 @@
 
 <!-- MODAL — Proyectar sitio desde tabla Sitios -->
 <div class="modal-overlay" id="modal-proyectar-sitio">
-  <div class="modal" style="max-width:480px;">
+  <div class="modal" style="max-width:520px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
       <div class="modal-title" style="margin:0;">Proyectar sitio</div>
       <button onclick="cerrarModal()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-light);line-height:1;">✕</button>
     </div>
 
     <!-- Info del sitio (solo lectura) -->
-    <div id="proy-sitio-info" style="background:rgba(79,128,255,0.06);border:1px solid rgba(79,128,255,0.18);border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:20px;">
+    <div style="background:rgba(79,128,255,0.06);border:1px solid rgba(79,128,255,0.18);border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:20px;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;font-size:13px;">
         <div><span style="font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;">Sitio</span><div style="font-weight:700;font-size:15px;margin-top:2px;" id="proy-sitio-id">—</div></div>
         <div><span style="font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;">Cliente</span><div style="font-weight:600;margin-top:2px;" id="proy-sitio-cliente">—</div></div>
@@ -1057,9 +1057,10 @@
         <div><span style="font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;">Total PO</span><div style="font-weight:700;color:var(--accent-blue);margin-top:2px;" id="proy-sitio-po-total">—</div></div>
       </div>
     </div>
-
     <input type="hidden" id="proy-sitio-id-hidden" />
 
+    <!-- Línea principal -->
+    <div style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Proyección principal</div>
     <div class="form-row" style="grid-template-columns:1fr 1fr;margin-bottom:4px;">
       <div class="form-group">
         <label class="form-label">% a facturar *</label>
@@ -1071,7 +1072,7 @@
       <div class="form-group">
         <label class="form-label">Mes proyectado *</label>
         <div style="display:flex;gap:8px;">
-          <select class="form-select" id="proy-mes-mes" style="flex:1.4;">
+          <select class="form-select" id="proy-mes-mes" style="flex:1.4;" onchange="actualizarRestoMes()">
             <option value="">Mes</option>
             <option value="01">Enero</option><option value="02">Febrero</option>
             <option value="03">Marzo</option><option value="04">Abril</option>
@@ -1080,18 +1081,53 @@
             <option value="09">Septiembre</option><option value="10">Octubre</option>
             <option value="11">Noviembre</option><option value="12">Diciembre</option>
           </select>
-          <input class="form-input" id="proy-mes-anio" type="number" min="2020" max="2040" value="2026" style="flex:1;min-width:0;" />
+          <input class="form-input" id="proy-mes-anio" type="number" min="2020" max="2040" value="2026" style="flex:1;min-width:0;" onchange="actualizarRestoMes()" />
         </div>
       </div>
     </div>
-
-    <div class="form-group" style="margin-bottom:20px;">
+    <div class="form-group" style="margin-bottom:16px;">
       <label class="form-label">Monto calculado</label>
       <input class="form-input" id="proy-monto" readonly placeholder="—" style="font-weight:700;background:rgba(240,242,248,0.7);" />
     </div>
 
+    <!-- Sección % restante — aparece cuando no es 100% -->
+    <div id="proy-resto-section" style="display:none;border-top:1px solid rgba(200,205,220,0.35);padding-top:16px;margin-top:4px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-size:11px;font-weight:700;color:var(--accent-teal);text-transform:uppercase;letter-spacing:.6px;">
+          % restante — <span id="proy-resto-pct-label">—</span>
+        </div>
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;color:var(--text-mid);">
+          <input type="checkbox" id="proy-resto-check" onchange="toggleRestoSection()" style="width:15px;height:15px;accent-color:var(--accent-teal);cursor:pointer;" checked />
+          Proyectar también
+        </label>
+      </div>
+      <div id="proy-resto-fields">
+        <div class="form-row" style="grid-template-columns:1fr 1fr;margin-bottom:4px;">
+          <div class="form-group">
+            <label class="form-label">Mes del restante *</label>
+            <div style="display:flex;gap:8px;">
+              <select class="form-select" id="proy-resto-mes-mes" style="flex:1.4;" onchange="calcularMontoResto()">
+                <option value="">Mes</option>
+                <option value="01">Enero</option><option value="02">Febrero</option>
+                <option value="03">Marzo</option><option value="04">Abril</option>
+                <option value="05">Mayo</option><option value="06">Junio</option>
+                <option value="07">Julio</option><option value="08">Agosto</option>
+                <option value="09">Septiembre</option><option value="10">Octubre</option>
+                <option value="11">Noviembre</option><option value="12">Diciembre</option>
+              </select>
+              <input class="form-input" id="proy-resto-mes-anio" type="number" min="2020" max="2040" value="2026" style="flex:1;min-width:0;" onchange="calcularMontoResto()" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Monto restante</label>
+            <input class="form-input" id="proy-resto-monto" readonly placeholder="—" style="font-weight:700;background:rgba(240,242,248,0.7);color:var(--accent-teal);" />
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Botones ✓ / ✕ -->
-    <div class="modal-footer" style="justify-content:center;gap:20px;">
+    <div class="modal-footer" style="justify-content:center;gap:20px;margin-top:20px;">
       <button onclick="cerrarModal()"
         style="width:52px;height:52px;border-radius:50%;background:rgba(248,113,113,0.12);border:2px solid rgba(248,113,113,0.4);color:#b91c1c;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;"
         onmouseover="this.style.background='rgba(248,113,113,0.25)'"
@@ -1102,6 +1138,62 @@
         onmouseover="this.style.background='rgba(45,212,191,0.25)'"
         onmouseout="this.style.background='rgba(45,212,191,0.12)'"
         title="Confirmar">✓</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL — Editar línea de seguimiento -->
+<div class="modal-overlay" id="modal-editar-linea">
+  <div class="modal" style="max-width:500px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div class="modal-title" style="margin:0;">Editar línea</div>
+      <button onclick="cerrarModal()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-light);line-height:1;">✕</button>
+    </div>
+    <!-- Info solo lectura -->
+    <div id="edit-lin-info" style="background:rgba(79,128,255,0.06);border:1px solid rgba(79,128,255,0.15);border-radius:var(--radius-sm);padding:12px 18px;margin-bottom:20px;font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;"></div>
+    <input type="hidden" id="edit-lin-id" />
+    <input type="hidden" id="edit-lin-estado" />
+
+    <!-- Mes proyectado (siempre editable) -->
+    <div class="form-group" style="margin-bottom:14px;">
+      <label class="form-label">Mes proyectado</label>
+      <div style="display:flex;gap:8px;">
+        <select class="form-select" id="edit-lin-mes-mes" style="flex:1.4;">
+          <option value="">Mes</option>
+          <option value="01">Enero</option><option value="02">Febrero</option>
+          <option value="03">Marzo</option><option value="04">Abril</option>
+          <option value="05">Mayo</option><option value="06">Junio</option>
+          <option value="07">Julio</option><option value="08">Agosto</option>
+          <option value="09">Septiembre</option><option value="10">Octubre</option>
+          <option value="11">Noviembre</option><option value="12">Diciembre</option>
+        </select>
+        <input class="form-input" id="edit-lin-mes-anio" type="number" min="2020" max="2040" style="flex:1;min-width:0;" />
+      </div>
+    </div>
+
+    <!-- Fecha solicitud (visible si Solicitado o Facturado) -->
+    <div class="form-group" id="edit-lin-row-solicitud" style="margin-bottom:14px;display:none;">
+      <label class="form-label">Fecha de solicitud</label>
+      <input class="form-input" type="date" id="edit-lin-fecha-solicitud" />
+    </div>
+
+    <!-- Fecha factura + Nro (visible si Facturado) -->
+    <div id="edit-lin-row-factura" style="display:none;">
+      <div class="form-row" style="grid-template-columns:1fr 1fr;">
+        <div class="form-group">
+          <label class="form-label">Fecha de facturación</label>
+          <input class="form-input" type="date" id="edit-lin-fecha-factura" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">N° de factura</label>
+          <input class="form-input" id="edit-lin-nro-factura" placeholder="0001-00001234" />
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer" style="margin-top:20px;">
+      <button class="btn btn-glass" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarEdicionLinea()">Guardar cambios</button>
     </div>
   </div>
 </div>
@@ -1761,9 +1853,48 @@ function calcularMontoProy() {
   const s   = getSit(sitioId);
   const pct = parseInt(document.getElementById('proy-pct').value) || 0;
   document.getElementById('proy-monto').value = (s && s.po && pct) ? fmt(s.po * pct / 100) : '—';
+
+  // Mostrar/ocultar sección restante
+  const pctUsado = lineas.filter(l => l.sitioId === sitioId).reduce((a,l) => a + l.pct, 0);
+  const pctDisp  = 100 - pctUsado;
+  const resto    = pctDisp - pct;
+
+  const section = document.getElementById('proy-resto-section');
+  if (resto > 0 && pct < pctDisp) {
+    document.getElementById('proy-resto-pct-label').textContent = resto + '%';
+    section.style.display = 'block';
+    calcularMontoResto();
+  } else {
+    section.style.display = 'none';
+  }
 }
 
-// Cola local de proyecciones pendientes (no se guardan en Sheets hasta el traspaso)
+function actualizarRestoMes() {
+  // Copia el mes principal al restante si el restante está vacío
+  const m = document.getElementById('proy-mes-mes').value;
+  const a = document.getElementById('proy-mes-anio').value;
+  const rm = document.getElementById('proy-resto-mes-mes');
+  const ra = document.getElementById('proy-resto-mes-anio');
+  if (!rm.value) rm.value = m;
+  if (!ra.value || ra.value === '2026') ra.value = a;
+  calcularMontoResto();
+}
+
+function toggleRestoSection() {
+  const checked = document.getElementById('proy-resto-check').checked;
+  document.getElementById('proy-resto-fields').style.display = checked ? 'block' : 'none';
+}
+
+function calcularMontoResto() {
+  const sitioId = document.getElementById('proy-sitio-id-hidden').value;
+  const s       = getSit(sitioId);
+  const pctPrin = parseInt(document.getElementById('proy-pct').value) || 0;
+  const pctUsado= lineas.filter(l => l.sitioId === sitioId).reduce((a,l) => a + l.pct, 0);
+  const resto   = (100 - pctUsado) - pctPrin;
+  document.getElementById('proy-resto-monto').value = (s && s.po && resto > 0) ? fmt(s.po * resto / 100) : '—';
+}
+
+// Cola local de proyecciones pendientes
 let _proyPendientes = [];
 
 function confirmarProyectarSitio() {
@@ -1779,25 +1910,46 @@ function confirmarProyectarSitio() {
   const mes   = `${mesA}-${mesM}`;
   const monto = (s && s.po) ? s.po * pct / 100 : 0;
 
-  // Verificar que no esté ya en la cola pendiente
-  const yaEnCola = _proyPendientes.find(p => p.sitioId === sitioId && p.pct === pct && p.mes === mes);
-  if (yaEnCola) {
-    toast('Esta proyección ya está en la cola pendiente.', 'err');
-    return;
+  // Verificar duplicado en cola
+  if (_proyPendientes.find(p => p.sitioId === sitioId && p.pct === pct && p.mes === mes)) {
+    return toast('Esta proyección ya está en la cola.', 'err');
   }
 
-  // Guardar en cola local SIN tocar Sheets
-  _proyPendientes.push({
-    id: nuevoId('FAC'),
-    sitioId, clienteId: s ? s.clienteId : '',
-    pct, monto, mes,
-    fechaSolicitud: '', fechaFactura: '', nroFactura: '', estado: 'Proyectado'
-  });
+  // Línea principal
+  const items = [{
+    id: nuevoId('FAC'), sitioId, clienteId: s ? s.clienteId : '',
+    pct, monto, mes, fechaSolicitud: '', fechaFactura: '', nroFactura: '', estado: 'Proyectado'
+  }];
 
+  // Línea restante (si aplica y el checkbox está marcado)
+  const restoSection = document.getElementById('proy-resto-section');
+  const restoCheck   = document.getElementById('proy-resto-check');
+  if (restoSection.style.display !== 'none' && restoCheck.checked) {
+    const rMesM = document.getElementById('proy-resto-mes-mes').value;
+    const rMesA = document.getElementById('proy-resto-mes-anio').value;
+    if (!rMesM || !rMesA) return toast('Seleccioná el mes del % restante.', 'err');
+    const pctUsado = lineas.filter(l => l.sitioId === sitioId).reduce((a,l) => a + l.pct, 0);
+    const pctResto = (100 - pctUsado) - pct;
+    if (pctResto > 0) {
+      const rMes   = `${rMesA}-${rMesM}`;
+      const rMonto = (s && s.po) ? s.po * pctResto / 100 : 0;
+      items.push({
+        id: nuevoId('FAC'), sitioId, clienteId: s ? s.clienteId : '',
+        pct: pctResto, monto: rMonto, mes: rMes,
+        fechaSolicitud: '', fechaFactura: '', nroFactura: '', estado: 'Proyectado'
+      });
+    }
+  }
+
+  // Agregar a cola local
+  items.forEach(it => _proyPendientes.push(it));
   cerrarModal();
   actualizarBannerProyecciones();
-  renderSitios(); // actualiza el status en la tabla
-  toast(`${sitioId} agregado a la cola — ${_proyPendientes.length} pendiente${_proyPendientes.length!==1?'s':''}`);
+  renderSitios();
+  const txt = items.length > 1
+    ? `${sitioId}: ${items[0].pct}% + ${items[1].pct}% agregados a la cola`
+    : `${sitioId} ${pct}% agregado a la cola`;
+  toast(txt);
 }
 
 function actualizarBannerProyecciones() {
@@ -2126,12 +2278,104 @@ function renderSeguimiento() {
       <td style="${tc}">${fechaCorta(l.fechaFactura)}</td>
       <td style="${tc}font-size:12px;color:var(--text-mid);">${l.nroFactura||'—'}</td>
       <td style="${tc}"><span class="badge ${badgeCls}">${l.estado}</span></td>
-      <td style="${tc}">${accion}</td>
+      <td style="${tc}">
+        <div style="display:flex;align-items:center;justify-content:center;gap:6px;">
+          <button class="btn btn-glass btn-sm" onclick="abrirEditarLinea('${l.id}')" title="Editar" style="font-size:13px;padding:5px 8px;">✏️</button>
+          ${accion}
+        </div>
+      </td>
     </tr>`;
   }).join('');
 }
 
-/* ── Eliminar línea de seguimiento ── */
+/* ══ EDITAR LÍNEA DE SEGUIMIENTO ══ */
+function abrirEditarLinea(lineaId) {
+  const l = lineas.find(x => x.id === lineaId);
+  if (!l) return;
+  const cli = getCli(l.clienteId);
+
+  // Info solo lectura
+  document.getElementById('edit-lin-info').innerHTML = `
+    <div><span style="font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;">Cliente</span>
+      <div style="display:flex;align-items:center;gap:6px;font-weight:600;margin-top:2px;">${cli?dot(cli.color):''}${l.clienteId}</div></div>
+    <div><span style="font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;">Sitio</span>
+      <div style="font-weight:700;font-size:15px;margin-top:2px;">${l.sitioId}</div></div>
+    <div><span style="font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;">Porcentaje</span>
+      <div style="margin-top:2px;">${l.pct}%</div></div>
+    <div><span style="font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;">Estado</span>
+      <div style="margin-top:2px;font-weight:600;">${l.estado}</div></div>`;
+
+  document.getElementById('edit-lin-id').value    = lineaId;
+  document.getElementById('edit-lin-estado').value= l.estado;
+
+  // Mes proyectado
+  const [anio, mes] = (l.mes || '-').split('-');
+  document.getElementById('edit-lin-mes-mes').value  = mes  || '';
+  document.getElementById('edit-lin-mes-anio').value = anio || '2026';
+
+  // Campos según estado
+  const rowSol = document.getElementById('edit-lin-row-solicitud');
+  const rowFac = document.getElementById('edit-lin-row-factura');
+
+  if (l.estado === 'Solicitado' || l.estado === 'Facturado') {
+    document.getElementById('edit-lin-fecha-solicitud').value = l.fechaSolicitud || '';
+    rowSol.style.display = 'block';
+  } else {
+    rowSol.style.display = 'none';
+  }
+
+  if (l.estado === 'Facturado') {
+    document.getElementById('edit-lin-fecha-factura').value = l.fechaFactura || '';
+    document.getElementById('edit-lin-nro-factura').value   = l.nroFactura   || '';
+    rowFac.style.display = 'block';
+  } else {
+    rowFac.style.display = 'none';
+  }
+
+  document.getElementById('modal-editar-linea').classList.add('open');
+}
+
+async function guardarEdicionLinea() {
+  const lineaId = document.getElementById('edit-lin-id').value;
+  const estado  = document.getElementById('edit-lin-estado').value;
+  const mesM    = document.getElementById('edit-lin-mes-mes').value;
+  const mesA    = document.getElementById('edit-lin-mes-anio').value;
+  if (!mesM || !mesA) return toast('Seleccioná el mes proyectado.', 'err');
+
+  const payload = { MES: `${mesA}-${mesM}` };
+
+  if (estado === 'Solicitado' || estado === 'Facturado') {
+    const fs = document.getElementById('edit-lin-fecha-solicitud').value;
+    if (!fs) return toast('Ingresá la fecha de solicitud.', 'err');
+    payload.FECHA_SOLICITUD = fs;
+  }
+  if (estado === 'Facturado') {
+    const ff = document.getElementById('edit-lin-fecha-factura').value;
+    const nf = document.getElementById('edit-lin-nro-factura').value;
+    if (!ff) return toast('Ingresá la fecha de facturación.', 'err');
+    if (!nf) return toast('Ingresá el número de factura.', 'err');
+    payload.FECHA_FACTURA = ff;
+    payload.NRO_FACTURA   = nf;
+  }
+
+  setLoading(true);
+  try {
+    await apiPost('UPDATE', 'FACTURACION', payload, lineaId);
+    // Actualizar memoria local
+    const l = lineas.find(x => x.id === lineaId);
+    if (l) {
+      l.mes = payload.MES;
+      if (payload.FECHA_SOLICITUD) l.fechaSolicitud = payload.FECHA_SOLICITUD;
+      if (payload.FECHA_FACTURA)   l.fechaFactura   = payload.FECHA_FACTURA;
+      if (payload.NRO_FACTURA)     l.nroFactura     = payload.NRO_FACTURA;
+    }
+    cerrarModal();
+    renderSeguimiento();
+    actualizarDashboard();
+    toast('Línea actualizada ✓');
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+  finally { setLoading(false); }
+}
 function abrirEliminarLinea(lineaId) {
   const l = lineas.find(x => x.id === lineaId);
   if (!l) return;
