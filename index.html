@@ -334,6 +334,70 @@
       0%, 100% { opacity: 1; transform: scale(1); }
       50%       { opacity: 0.4; transform: scale(0.75); }
     }
+
+    /* ── Barra progreso global (tope de pantalla) ── */
+    #global-progress-bar {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: 3px; z-index: 9999; pointer-events: none;
+      display: none;
+    }
+    #global-progress-fill {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, #4f80ff, #2dd4bf, #a78bfa);
+      background-size: 200% 100%;
+      border-radius: 0 3px 3px 0;
+      transition: width 0.3s ease;
+      animation: shimmer-bar 1.8s linear infinite;
+    }
+    @keyframes shimmer-bar {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    /* overlay semitransparente */
+    #global-overlay {
+      position: fixed; inset: 0; z-index: 8880;
+      background: rgba(238,240,245,0.45);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+      display: none; pointer-events: all;
+    }
+
+    /* ── Banner flotante proyecciones pendientes ── */
+    #banner-proyecciones {
+      display: none;
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+      z-index: 3000;
+      background: rgba(20,22,40,0.95); backdrop-filter: blur(16px);
+      border: 1px solid rgba(79,128,255,0.45); border-radius: 40px;
+      padding: 12px 20px 12px 16px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.3);
+      display: none; align-items: center; gap: 14px;
+      font-size: 13px; color: #e2e8f0;
+      animation: fadeUp 0.3s ease;
+      white-space: nowrap;
+    }
+    #banner-proyecciones.visible { display: flex; }
+    .banner-badge {
+      background: var(--accent-blue); color: #fff;
+      font-size: 11px; font-weight: 800;
+      width: 22px; height: 22px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .banner-btn {
+      background: var(--accent-blue); color: #fff;
+      border: none; border-radius: 20px;
+      padding: 7px 16px; font-size: 12px; font-weight: 700;
+      cursor: pointer; transition: all .2s;
+    }
+    .banner-btn:hover { background: #3a6bf0; transform: scale(1.03); }
+    .banner-cancel {
+      background: rgba(255,255,255,0.08); color: #94a3b8;
+      border: none; border-radius: 20px;
+      padding: 7px 12px; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all .2s;
+    }
+    .banner-cancel:hover { background: rgba(255,255,255,0.15); color: #e2e8f0; }
   </style>
 </head>
 <body>
@@ -345,9 +409,14 @@
     <div class="login-title">Terabyte SRL</div>
     <div class="login-sub">Sistema de Gestión · Ingresá tus credenciales</div>
     <!-- Estado de conexión con el servidor -->
-    <div id="login-conn-status" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-light);background:rgba(150,160,190,0.08);border:1px solid rgba(150,160,190,0.2);border-radius:8px;padding:8px 12px;margin-bottom:14px;">
-      <span id="login-conn-dot" style="width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0;animation:pulse-dot 1.2s infinite;"></span>
-      <span id="login-conn-text">Conectando con el servidor...</span>
+    <div id="login-conn-status" style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span id="login-conn-text" style="font-size:12px;color:var(--text-light);">Conectando con el servidor...</span>
+        <span id="login-conn-pct" style="font-size:12px;color:var(--text-light);font-weight:600;">0%</span>
+      </div>
+      <div style="height:4px;background:rgba(200,205,220,0.35);border-radius:20px;overflow:hidden;">
+        <div id="login-conn-bar" style="height:100%;width:0%;border-radius:20px;background:linear-gradient(90deg,#4f80ff,#2dd4bf);transition:width 0.4s ease;"></div>
+      </div>
     </div>
     <div class="login-error" id="login-error"></div>
     <div class="form-group" style="margin-bottom:14px;">
@@ -762,6 +831,32 @@
 
 </main>
 
+<!-- Banner flotante — proyecciones pendientes de traspasar -->
+<div id="banner-proyecciones">
+  <div class="banner-badge" id="banner-count">0</div>
+  <span>proyección<span id="banner-plural">es</span> pendiente<span id="banner-plural2">s</span> de traspasar a Seguimiento</span>
+  <button class="banner-btn" onclick="abrirConfirmarTraspaso()">Traspasar ahora</button>
+  <button class="banner-cancel" onclick="descartarProyecciones()">Descartar</button>
+</div>
+
+<!-- MODAL — Confirmar traspaso a seguimiento -->
+<div class="modal-overlay" id="modal-confirmar-traspaso">
+  <div class="modal" style="max-width:560px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div class="modal-title" style="margin:0;">Confirmar traspaso a Seguimiento</div>
+      <button onclick="cerrarModal()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-light);line-height:1;">✕</button>
+    </div>
+    <div style="font-size:13px;color:var(--text-mid);margin-bottom:16px;">
+      Se van a crear las siguientes líneas en Seguimiento:
+    </div>
+    <div id="traspaso-resumen" style="background:rgba(79,128,255,0.05);border:1px solid rgba(79,128,255,0.15);border-radius:var(--radius-sm);padding:4px 0;margin-bottom:22px;max-height:280px;overflow-y:auto;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-glass" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="ejecutarTraspaso()">Confirmar traspaso</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL — Nueva línea (full screen) -->
 <div class="modal-overlay" id="modal-nueva-linea" style="align-items:center;padding:20px;">
   <div class="modal" style="width:100%;max-width:720px;">
@@ -1056,6 +1151,10 @@
   </div>
 </div>
 
+<!-- Barra de progreso global — tope de pantalla -->
+<div id="global-progress-bar"><div id="global-progress-fill"></div></div>
+<!-- Overlay semitransparente -->
+<div id="global-overlay"></div>
 <!-- Tooltip global para sitios -->
 <div id="sit-global-tooltip" class="sit-tooltip"></div>
 
@@ -1103,19 +1202,48 @@ function toast(msg, tipo = 'ok') {
 }
 
 // Spinner global
+/* ══ BARRA DE PROGRESO GLOBAL ══ */
+let _progressTimer = null;
+let _progressVal   = 0;
+
 function setLoading(on) {
-  let sp = document.getElementById('global-spinner');
-  if (!sp) {
-    sp = document.createElement('div');
-    sp.id = 'global-spinner';
-    sp.innerHTML = `<div style="width:36px;height:36px;border:3px solid rgba(79,128,255,0.2);border-top-color:#4f80ff;border-radius:50%;animation:spin 0.7s linear infinite;"></div>`;
-    sp.style.cssText = 'position:fixed;inset:0;z-index:8888;display:flex;align-items:center;justify-content:center;background:rgba(238,240,245,0.6);backdrop-filter:blur(4px);';
-    document.body.appendChild(sp);
-    const style = document.createElement('style');
-    style.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
-    document.head.appendChild(style);
+  const bar     = document.getElementById('global-progress-bar');
+  const fill    = document.getElementById('global-progress-fill');
+  const overlay = document.getElementById('global-overlay');
+  if (!bar || !fill || !overlay) return;
+
+  if (on) {
+    // Mostrar barra y overlay
+    _progressVal = 0;
+    fill.style.transition = 'width 0.3s ease';
+    fill.style.width = '0%';
+    bar.style.display = 'block';
+    overlay.style.display = 'block';
+
+    // Avance ficticio: rápido al principio, se frena cerca del 85%
+    clearInterval(_progressTimer);
+    _progressTimer = setInterval(() => {
+      if (_progressVal < 30)      _progressVal += 8;
+      else if (_progressVal < 60) _progressVal += 4;
+      else if (_progressVal < 80) _progressVal += 2;
+      else if (_progressVal < 88) _progressVal += 0.5;
+      // Se detiene en 88 — espera la respuesta real
+      if (_progressVal >= 88) { clearInterval(_progressTimer); _progressVal = 88; }
+      fill.style.width = _progressVal + '%';
+    }, 120);
+
+  } else {
+    // Completar al 100% y ocultar
+    clearInterval(_progressTimer);
+    fill.style.transition = 'width 0.2s ease';
+    fill.style.width = '100%';
+    overlay.style.display = 'none';
+    setTimeout(() => {
+      bar.style.display = 'none';
+      fill.style.width  = '0%';
+      _progressVal = 0;
+    }, 300);
   }
-  sp.style.display = on ? 'flex' : 'none';
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1464,27 +1592,33 @@ async function guardarEdicionSitio() {
 }
 
 function getSitStatus(sitioId) {
-  // Devuelve el status consolidado del sitio basado en sus líneas de seguimiento
-  const ls = lineas.filter(l => l.sitioId === sitioId);
-  if (!ls.length) return { label: 'Sin asignar', badge: 'badge-sin', color: 'rgba(150,160,190,0.15)', text: '#9aa0b8' };
-  // Prioridad: si alguna está Facturada mostrar % facturado, si hay Solicitada, Solicitado, si todo Proyectado
+  // Combina líneas confirmadas + cola local pendiente
+  const ls  = lineas.filter(l => l.sitioId === sitioId);
+  const lp  = (_proyPendientes || []).filter(p => p.sitioId === sitioId);
+  const all = [...ls, ...lp];
+
+  if (!all.length) return { label: 'Sin asignar', color: 'rgba(150,160,190,0.15)', text: '#9aa0b8' };
+
   const facturadas  = ls.filter(l => l.estado === 'Facturado');
   const solicitadas = ls.filter(l => l.estado === 'Solicitado');
-  const proyectadas = ls.filter(l => l.estado === 'Proyectado');
-  const pctFac  = facturadas.reduce((a,l) => a + l.pct, 0);
-  const pctSol  = solicitadas.reduce((a,l) => a + l.pct, 0);
-  const pctProy = proyectadas.reduce((a,l) => a + l.pct, 0);
+  const proyectadas = [...ls.filter(l => l.estado === 'Proyectado'), ...lp];
+  const pctFac = facturadas.reduce((a,l) => a + l.pct, 0);
+  const pendCola = lp.length;
 
   if (facturadas.length && !solicitadas.length && !proyectadas.length) {
-    return { label: `Facturado ${pctFac}%`, badge: 'badge-green', color: 'rgba(45,212,191,0.12)', text: '#0d9488' };
+    return { label: `Facturado ${pctFac}%`, color: 'rgba(45,212,191,0.12)', text: '#0d9488' };
   }
   if (facturadas.length) {
-    return { label: `${pctFac}% Facturado`, badge: 'badge-green', color: 'rgba(45,212,191,0.12)', text: '#0d9488' };
+    return { label: `${pctFac}% Facturado`, color: 'rgba(45,212,191,0.12)', text: '#0d9488' };
   }
   if (solicitadas.length) {
-    return { label: 'Solicitado', badge: 'badge-amber', color: 'rgba(251,191,36,0.12)', text: '#b45309' };
+    return { label: 'Solicitado', color: 'rgba(251,191,36,0.12)', text: '#b45309' };
   }
-  return { label: 'Proyectado', badge: 'badge-blue', color: 'rgba(79,128,255,0.12)', text: '#3a6bf0' };
+  if (pendCola > 0 && ls.filter(l=>l.estado==='Proyectado').length === 0) {
+    // Solo en cola local, aún no guardado
+    return { label: '⏳ En cola', color: 'rgba(167,139,250,0.12)', text: '#7c3aed' };
+  }
+  return { label: 'Proyectado', color: 'rgba(79,128,255,0.12)', text: '#3a6bf0' };
 }
 
 function renderSitios(filtro = '', filtros = null) {
@@ -1629,40 +1763,132 @@ function calcularMontoProy() {
   document.getElementById('proy-monto').value = (s && s.po && pct) ? fmt(s.po * pct / 100) : '—';
 }
 
-async function confirmarProyectarSitio() {
+// Cola local de proyecciones pendientes (no se guardan en Sheets hasta el traspaso)
+let _proyPendientes = [];
+
+function confirmarProyectarSitio() {
   const sitioId = document.getElementById('proy-sitio-id-hidden').value;
   const pct     = parseInt(document.getElementById('proy-pct').value);
   const mesM    = document.getElementById('proy-mes-mes').value;
   const mesA    = document.getElementById('proy-mes-anio').value;
 
-  if (!pct)          return toast('Seleccioná el porcentaje.', 'err');
+  if (!pct)           return toast('Seleccioná el porcentaje.', 'err');
   if (!mesM || !mesA) return toast('Seleccioná mes y año.', 'err');
 
   const s     = getSit(sitioId);
   const mes   = `${mesA}-${mesM}`;
   const monto = (s && s.po) ? s.po * pct / 100 : 0;
-  const id    = nuevoId('FAC');
 
-  setLoading(true);
-  try {
-    await apiPost('INSERT', 'FACTURACION', {
-      ID: id, SITIO_ID: sitioId, CLIENTE_ID: s ? s.clienteId : '',
-      PCT: pct, MONTO: monto, MES: mes,
-      FECHA_SOLICITUD: '', FECHA_FACTURA: '', NRO_FACTURA: '', ESTADO: 'Proyectado'
-    });
-    lineas.push({
-      id, sitioId, clienteId: s ? s.clienteId : '',
-      pct, monto, mes,
-      fechaSolicitud: '', fechaFactura: '', nroFactura: '', estado: 'Proyectado'
-    });
+  // Verificar que no esté ya en la cola pendiente
+  const yaEnCola = _proyPendientes.find(p => p.sitioId === sitioId && p.pct === pct && p.mes === mes);
+  if (yaEnCola) {
+    toast('Esta proyección ya está en la cola pendiente.', 'err');
+    return;
+  }
+
+  // Guardar en cola local SIN tocar Sheets
+  _proyPendientes.push({
+    id: nuevoId('FAC'),
+    sitioId, clienteId: s ? s.clienteId : '',
+    pct, monto, mes,
+    fechaSolicitud: '', fechaFactura: '', nroFactura: '', estado: 'Proyectado'
+  });
+
+  cerrarModal();
+  actualizarBannerProyecciones();
+  renderSitios(); // actualiza el status en la tabla
+  toast(`${sitioId} agregado a la cola — ${_proyPendientes.length} pendiente${_proyPendientes.length!==1?'s':''}`);
+}
+
+function actualizarBannerProyecciones() {
+  const banner = document.getElementById('banner-proyecciones');
+  const n = _proyPendientes.length;
+  if (n === 0) {
+    banner.classList.remove('visible');
+    return;
+  }
+  document.getElementById('banner-count').textContent = n;
+  document.getElementById('banner-plural').textContent  = n === 1 ? '' : 'es';
+  document.getElementById('banner-plural2').textContent = n === 1 ? '' : 's';
+  banner.classList.add('visible');
+}
+
+function abrirConfirmarTraspaso() {
+  const resumen = document.getElementById('traspaso-resumen');
+  resumen.innerHTML = _proyPendientes.map(p => {
+    const cli = getCli(p.clienteId);
+    const s   = getSit(p.sitioId);
+    return `<div style="display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid rgba(200,205,220,0.2);font-size:13px;">
+      ${cli ? dot(cli.color) : ''}
+      <div style="flex:1;">
+        <span style="font-weight:700;">${p.sitioId}</span>
+        <span style="color:var(--text-light);margin-left:8px;">${p.clienteId}</span>
+      </div>
+      <span class="badge badge-blue">${p.pct}%</span>
+      <span style="font-weight:700;min-width:90px;text-align:right;">${fmt(p.monto)}</span>
+      <span style="color:var(--text-light);min-width:80px;text-align:right;">${mesLabel(p.mes)}</span>
+      <button onclick="quitarDeCola('${p.id}')" title="Quitar" style="background:none;border:none;cursor:pointer;color:rgba(248,113,113,0.5);font-size:14px;padding:0 4px;"
+        onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(248,113,113,0.5)'">✕</button>
+    </div>`;
+  }).join('');
+  document.getElementById('modal-confirmar-traspaso').classList.add('open');
+}
+
+function quitarDeCola(id) {
+  _proyPendientes = _proyPendientes.filter(p => p.id !== id);
+  actualizarBannerProyecciones();
+  if (_proyPendientes.length === 0) {
     cerrarModal();
-    renderSitios();        // actualiza tooltip del sitio
-    renderSeguimiento();   // aparece en seguimiento
-    actualizarDashboard();
-    actualizarBadge();
-    toast(`${sitioId} proyectado para ${mesLabel(mes)} ✓`);
-  } catch(e) { toast('Error: ' + e.message, 'err'); }
-  finally { setLoading(false); }
+    renderSitios();
+    return;
+  }
+  abrirConfirmarTraspaso(); // refrescar modal
+}
+
+async function ejecutarTraspaso() {
+  if (!_proyPendientes.length) return;
+  cerrarModal();
+  setLoading(true);
+
+  const pendientes = [..._proyPendientes];
+  let ok = 0, err = 0;
+
+  // Insertar de a uno pero sin esperar entre cada uno (Promise.all)
+  const promises = pendientes.map(p =>
+    apiPost('INSERT', 'FACTURACION', {
+      ID: p.id, SITIO_ID: p.sitioId, CLIENTE_ID: p.clienteId,
+      PCT: p.pct, MONTO: p.monto, MES: p.mes,
+      FECHA_SOLICITUD: '', FECHA_FACTURA: '', NRO_FACTURA: '', ESTADO: 'Proyectado'
+    }).then(() => {
+      lineas.push(p); // agregar a memoria local
+      ok++;
+    }).catch(() => { err++; })
+  );
+
+  await Promise.all(promises);
+
+  // Limpiar solo los que se guardaron
+  _proyPendientes = err > 0 ? _proyPendientes.slice(ok) : [];
+
+  actualizarBannerProyecciones();
+  renderSitios();
+  renderSeguimiento();
+  actualizarDashboard();
+  actualizarBadge();
+  setLoading(false);
+
+  if (err === 0) {
+    toast(`${ok} línea${ok!==1?'s':''} traspasada${ok!==1?'s':''} a Seguimiento ✓`);
+  } else {
+    toast(`${ok} OK, ${err} con error. Intentá de nuevo.`, 'err');
+  }
+}
+
+function descartarProyecciones() {
+  if (!confirm(`¿Descartás las ${_proyPendientes.length} proyección(es) pendientes? No se guardarán.`)) return;
+  _proyPendientes = [];
+  actualizarBannerProyecciones();
+  renderSitios(); // limpiar status visual
 }
 let filtroTextoSeg = '', filtroEstadoSeg = '', filtroClienteSeg = '', filtroSitioSeg = '';
 
@@ -2510,38 +2736,54 @@ function cerrarSesion() {
   document.getElementById('screen-bienvenida').style.opacity = '1';
 }
 
-/* Init — hacer ping en background para "despertar" el Apps Script
-   mientras el usuario ve la pantalla de login */
+/* Init — hacer ping en background para "despertar" el Apps Script */
 (async function pingServidor() {
-  const dot  = document.getElementById('login-conn-dot');
+  const bar  = document.getElementById('login-conn-bar');
+  const pct  = document.getElementById('login-conn-pct');
   const txt  = document.getElementById('login-conn-text');
   const btn  = document.getElementById('btn-login');
-  const t0   = Date.now();
 
+  // Animación ficticia de progreso mientras conecta
+  let val = 0;
+  const timer = setInterval(() => {
+    if (val < 30)      val += 6;
+    else if (val < 60) val += 3;
+    else if (val < 82) val += 1.2;
+    else if (val < 88) val += 0.3;
+    if (val >= 88) { val = 88; clearInterval(timer); }
+    bar.style.width = val + '%';
+    pct.textContent = Math.round(val) + '%';
+  }, 130);
+
+  const t0 = Date.now();
   try {
-    // Ping liviano — solo pide CLIENTES (mínimo de datos)
     const res  = await fetch(`${API_URL}?sheet=CLIENTES`);
     const data = await res.json();
     const ms   = Date.now() - t0;
+    clearInterval(timer);
 
     if (data.ok !== false) {
-      // Conexión OK
-      dot.style.background   = '#22c55e';
-      dot.style.animation    = 'none';
-      txt.textContent        = `Servidor conectado (${ms < 1000 ? ms + 'ms' : (ms/1000).toFixed(1) + 's'})`;
-      document.getElementById('login-conn-status').style.borderColor = 'rgba(34,197,94,0.3)';
-      document.getElementById('login-conn-status').style.background  = 'rgba(34,197,94,0.06)';
-      btn.disabled = false; // habilitar botón recién aquí
+      // Completar barra al 100%
+      bar.style.transition = 'width 0.3s ease';
+      bar.style.width = '100%';
+      bar.style.background = 'linear-gradient(90deg,#22c55e,#4ade80)';
+      pct.textContent = '100%';
+      pct.style.color = '#16a34a';
+      txt.textContent = `Servidor listo (${ms < 1000 ? ms + 'ms' : (ms/1000).toFixed(1) + 's'})`;
+      txt.style.color = '#16a34a';
+      btn.disabled = false;
     } else {
       throw new Error(data.error || 'Respuesta inválida');
     }
   } catch(e) {
-    dot.style.background = '#f87171';
-    dot.style.animation  = 'none';
-    txt.textContent      = 'Error de conexión — Contactar al administrador';
-    document.getElementById('login-conn-status').style.borderColor = 'rgba(248,113,113,0.3)';
-    document.getElementById('login-conn-status').style.background  = 'rgba(248,113,113,0.06)';
-    btn.disabled = false; // igual habilitar para que pueda intentar
+    clearInterval(timer);
+    bar.style.width = '100%';
+    bar.style.background = 'linear-gradient(90deg,#f87171,#fca5a5)';
+    pct.textContent = '—';
+    pct.style.color = '#b91c1c';
+    txt.textContent = 'Error de conexión — Contactar al administrador';
+    txt.style.color = '#b91c1c';
+    btn.disabled = false;
     console.error('Ping falló:', e);
   }
 })();
