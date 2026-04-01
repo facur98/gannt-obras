@@ -2350,22 +2350,41 @@ function saludo(nombre) {
 
 async function cargarUsuariosAdmin() {
   try {
+    console.log('LOGIN: consultando', API_URL + '?sheet=ADMIN');
     const res  = await fetch(`${API_URL}?sheet=ADMIN`);
-    const data = await res.json();
-    if (!data.ok || !data.data) return [];
+    const text = await res.text();
+    console.log('LOGIN: respuesta cruda ADMIN:', text.substring(0, 500));
+
+    let data;
+    try { data = JSON.parse(text); }
+    catch(e) { console.error('LOGIN: respuesta no es JSON:', text); return []; }
+
+    console.log('LOGIN: data.ok =', data.ok, '| data.data =', data.data);
+
+    if (!data.ok) { console.error('LOGIN: Apps Script devolvió error:', data.error); return []; }
+    if (!data.data || !data.data.length) { console.warn('LOGIN: solapa ADMIN vacía o sin datos'); return []; }
+
+    // Log de claves disponibles en la primera fila
+    console.log('LOGIN: claves en fila 1:', Object.keys(data.data[0]));
+
     const get = (row, key) => {
-      const k = Object.keys(row).find(k => k.trim().toUpperCase() === key.toUpperCase());
+      const k = Object.keys(row).find(k => k.trim().toUpperCase() === key.trim().toUpperCase());
       return k ? String(row[k] ?? '').trim() : '';
     };
-    return data.data.map(r => ({
-      idUsuario: get(r, 'ID_USUARIO') || get(r, 'ID USUARIO'),
-      rol:       get(r, 'ROL'),
-      usuario:   get(r, 'USUARIO'),
-      clave:     get(r, 'CLAVE'),
-      habilitado: get(r, 'HABILITADO').toUpperCase() === 'TRUE' || get(r, 'HABILITADO') === '1' || get(r, 'HABILITADO').toUpperCase() === 'VERDADERO'
+
+    const usuarios = data.data.map(r => ({
+      idUsuario:  get(r, 'ID_USUARIO') || get(r, 'ID USUARIO'),
+      rol:        get(r, 'ROL'),
+      usuario:    get(r, 'USUARIO'),
+      clave:      get(r, 'CLAVE'),
+      habilitado: ['TRUE','1','VERDADERO','SI','SÍ'].includes(get(r, 'HABILITADO').toUpperCase())
     })).filter(u => u.usuario);
+
+    console.log('LOGIN: usuarios parseados:', usuarios.map(u => ({ usuario: u.usuario, habilitado: u.habilitado })));
+    return usuarios;
+
   } catch(e) {
-    console.error('Error cargando ADMIN:', e);
+    console.error('LOGIN: excepción en cargarUsuariosAdmin:', e);
     return [];
   }
 }
@@ -2383,18 +2402,35 @@ async function intentarLogin() {
 
   btn.textContent = 'Verificando...';
   btn.disabled = true;
+  errEl.style.display = 'none';
 
-  // Cargar usuarios si no están cargados
+  // Siempre recargar la lista (por si hubo un fallo anterior)
+  _usuariosAdmin = await cargarUsuariosAdmin();
+
+  console.log('LOGIN: intentando con usuario="' + user + '" | total usuarios cargados:', _usuariosAdmin.length);
+
   if (!_usuariosAdmin.length) {
-    _usuariosAdmin = await cargarUsuariosAdmin();
+    errEl.textContent = 'No se pudo conectar con la lista de usuarios. Revisá la consola (F12) y el Apps Script.';
+    errEl.style.display = 'block';
+    btn.textContent = 'Ingresar';
+    btn.disabled = false;
+    return;
   }
 
   const match = _usuariosAdmin.find(u =>
     u.usuario.toLowerCase() === user.toLowerCase() && u.clave === pass
   );
 
+  console.log('LOGIN: match encontrado:', match ? 'SÍ — ' + match.usuario : 'NO');
+
   if (!match) {
-    errEl.textContent = 'Usuario o contraseña incorrectos.';
+    // Mostrar diagnóstico amigable
+    const existeUser = _usuariosAdmin.find(u => u.usuario.toLowerCase() === user.toLowerCase());
+    if (existeUser) {
+      errEl.textContent = 'Contraseña incorrecta.';
+    } else {
+      errEl.textContent = 'Usuario no encontrado. Verificá que esté cargado en la solapa ADMIN.';
+    }
     errEl.style.display = 'block';
     btn.textContent = 'Ingresar';
     btn.disabled = false;
@@ -2411,7 +2447,6 @@ async function intentarLogin() {
     return;
   }
 
-  // Login OK
   _usuarioActual = match;
   mostrarBienvenida(match);
 }
