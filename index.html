@@ -1485,7 +1485,7 @@ function renderSitios(filtro = '', filtros = null) {
       <td style="font-weight:600;">${s.po ? fmt(s.po) : '—'}</td>
       <td style="color:var(--text-mid);font-size:12px;">${s.obs||'—'}</td>
       <td><span style="display:flex;align-items:center;justify-content:center;gap:6px;">
-        <button class="btn btn-glass btn-sm" onclick="abrirProyectarSitio('${s.id}')" title="Proyectar en seguimiento" style="color:var(--accent-blue);">📅</button>
+        <button class="btn btn-glass btn-sm" onclick="abrirProyectarSitio('${s.id}')" title="Proyectar en seguimiento" style="color:var(--accent-blue);font-size:11px;font-weight:700;padding:5px 9px;">+Seg</button>
         <button class="btn btn-glass btn-sm" onclick="abrirEditarSitio('${s.id}')" title="Editar">✏️</button>
         <button class="btn btn-rose btn-sm" onclick="eliminarSitio('${s.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
       </span></td>
@@ -2006,6 +2006,7 @@ function actualizarDashboard() {
 
   // KPI cards
   const row = document.getElementById('dash-kpi-row');
+  if (!row) return; // vista no activa aún
   row.className = 'stats-row-5';
   row.innerHTML =
     kpiCard('blue',   'Facturación mensual',
