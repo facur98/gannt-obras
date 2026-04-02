@@ -793,7 +793,14 @@
     <!-- Pills eliminados por pedido del usuario -->
     <div class="card">
       <div class="card-header" style="flex-wrap:wrap;gap:12px;">
-        <div class="card-title">Líneas de facturación</div>
+        <div>
+          <div class="card-title">Líneas de facturación</div>
+          <div id="seg-summary" style="font-size:12px;color:var(--text-light);margin-top:4px;display:none;">
+            <span id="seg-summary-count" style="font-weight:600;color:var(--text-mid);"></span>
+            <span style="margin:0 6px;">·</span>
+            <span id="seg-summary-total" style="font-weight:700;color:var(--accent-blue);"></span>
+          </div>
+        </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <input class="form-input" style="width:160px;" placeholder="Buscar..." oninput="aplicarFiltrosSeg()" id="seg-filtro-texto" />
           <select class="form-select" style="width:160px;" id="seg-filtro-cliente" onchange="aplicarFiltrosSeg()">
@@ -2347,13 +2354,22 @@ function renderSeguimiento() {
   if (filtroClienteSeg) lista = lista.filter(l => l.clienteId === filtroClienteSeg);
   if (filtroSitioSeg)   lista = lista.filter(l => l.sitioId   === filtroSitioSeg);
   if (filtroEstadoSeg)  lista = lista.filter(l => l.estado    === filtroEstadoSeg);
-  // Filtro por mes: aplica sobre mes proyectado, fecha solicitud o fecha factura
+
+  // Filtro por mes: actúa según el estado seleccionado
+  // - Proyectado → filtra por mes proyectado (l.mes)
+  // - Solicitado → filtra por fecha de solicitud
+  // - Facturado  → filtra por fecha de facturación
+  // - Sin estado → filtra en cualquiera de los tres campos
   if (filtroMesSeg) {
-    lista = lista.filter(l =>
-      l.mes === filtroMesSeg ||
-      (l.fechaSolicitud && l.fechaSolicitud.startsWith(filtroMesSeg)) ||
-      (l.fechaFactura   && l.fechaFactura.startsWith(filtroMesSeg))
-    );
+    lista = lista.filter(l => {
+      if (filtroEstadoSeg === 'Proyectado') return l.mes === filtroMesSeg;
+      if (filtroEstadoSeg === 'Solicitado') return l.fechaSolicitud && l.fechaSolicitud.startsWith(filtroMesSeg);
+      if (filtroEstadoSeg === 'Facturado')  return l.fechaFactura   && l.fechaFactura.startsWith(filtroMesSeg);
+      // Sin estado seleccionado: cualquier campo de fecha coincide
+      return l.mes === filtroMesSeg ||
+             (l.fechaSolicitud && l.fechaSolicitud.startsWith(filtroMesSeg)) ||
+             (l.fechaFactura   && l.fechaFactura.startsWith(filtroMesSeg));
+    });
   }
 
   // Ordenar: por ID de sitio, luego por PO, luego por % (pct)
@@ -2365,6 +2381,22 @@ function renderSeguimiento() {
     if ((a.poNroLinea || '') > (b.poNroLinea || '')) return 1;
     return (a.pct || 0) - (b.pct || 0);
   });
+
+  // Actualizar resumen de cantidad y monto total
+  const sumEl    = document.getElementById('seg-summary');
+  const countEl  = document.getElementById('seg-summary-count');
+  const totalEl  = document.getElementById('seg-summary-total');
+  if (sumEl) {
+    const totalMonto = lista.reduce((acc, l) => acc + (l.monto || 0), 0);
+    const hayFiltro  = filtroTextoSeg || filtroClienteSeg || filtroSitioSeg || filtroMesSeg || filtroEstadoSeg;
+    if (hayFiltro || lista.length !== lineas.length) {
+      countEl.textContent = `${lista.length} línea${lista.length !== 1 ? 's' : ''}`;
+      totalEl.textContent = fmt(Math.round(totalMonto));
+      sumEl.style.display = 'block';
+    } else {
+      sumEl.style.display = 'none';
+    }
+  }
 
   if (!lista.length) { tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state"><span class="es-icon">🧾</span><p>Sin líneas registradas.</p></div></td></tr>`; return; }
 
