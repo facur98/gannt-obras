@@ -51,6 +51,38 @@
     .nav-item:hover { background: rgba(79,128,255,0.07); color: var(--accent-blue); }
     .nav-item.active { background: rgba(79,128,255,0.12); color: var(--accent-blue); font-weight: 600; }
     .nav-item.active::before { content: ''; position: absolute; left: -14px; top: 50%; transform: translateY(-50%); width: 3px; height: 22px; background: var(--accent-blue); border-radius: 0 3px 3px 0; }
+
+    /* ── Menú colapsable ── */
+    .nav-group-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px; border-radius: var(--radius-sm);
+      cursor: pointer; color: var(--text-mid); font-size: 13.5px; font-weight: 600;
+      transition: var(--transition); margin-bottom: 2px;
+      user-select: none;
+    }
+    .nav-group-header:hover { background: rgba(79,128,255,0.07); color: var(--accent-blue); }
+    .nav-group-header.open { color: var(--accent-blue); }
+    .nav-group-arrow { font-size: 10px; transition: transform 0.25s ease; }
+    .nav-group-header.open .nav-group-arrow { transform: rotate(90deg); }
+    .nav-subitems {
+      overflow: hidden; max-height: 0;
+      transition: max-height 0.3s cubic-bezier(.4,0,.2,1);
+    }
+    .nav-subitems.open { max-height: 400px; }
+    .nav-subitem {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px 8px 26px; border-radius: var(--radius-sm);
+      cursor: pointer; color: var(--text-mid); font-size: 13px; font-weight: 500;
+      transition: var(--transition); margin-bottom: 1px; text-decoration: none;
+    }
+    .nav-subitem:hover { background: rgba(79,128,255,0.07); color: var(--accent-blue); }
+    .nav-subitem.active { background: rgba(79,128,255,0.10); color: var(--accent-blue); font-weight: 600; }
+
+    /* ── Fila facturado 100% — verde liquid glass ── */
+    tr.row-facturado-100 td {
+      background: rgba(45,212,191,0.07) !important;
+    }
+    tr.row-facturado-100 { border-left: 3px solid rgba(45,212,191,0.5); }
     .nav-badge { margin-left: auto; font-size: 10px; font-weight: 700; background: var(--accent-blue); color: #fff; padding: 2px 7px; border-radius: 20px; }
     .sidebar-footer { margin-top: auto; padding: 16px 14px 0; border-top: 1px solid rgba(255,255,255,0.6); }
     .user-card { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; transition: var(--transition); }
@@ -257,7 +289,11 @@
     .kc-violet .kpi-bar-fill { background: linear-gradient(90deg,#7c3aed,#a78bfa); }
 
     .stats-row-5 { display: grid; grid-template-columns: repeat(5,1fr); gap: 14px; margin-bottom: 24px; }
-    @media (max-width: 1200px) { .stats-row-5 { grid-template-columns: repeat(3,1fr); } }
+    .stats-row-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 24px; }
+    @media (max-width: 1200px) {
+      .stats-row-5 { grid-template-columns: repeat(3,1fr); }
+      .stats-row-4 { grid-template-columns: repeat(2,1fr); }
+    }
     #screen-login {
       position: fixed; inset: 0; z-index: 5000;
       background: var(--bg); display: flex; align-items: center; justify-content: center;
@@ -335,7 +371,7 @@
       50%       { opacity: 0.4; transform: scale(0.75); }
     }
 
-    /* ── Barra progreso global (tope de pantalla) ── */
+    /* ── Indicador de carga circular (donut) ── */
     #global-progress-bar {
       position: fixed; top: 0; left: 0; right: 0;
       height: 3px; z-index: 9999; pointer-events: none;
@@ -353,13 +389,27 @@
       0%   { background-position: 200% 0; }
       100% { background-position: -200% 0; }
     }
-    /* overlay semitransparente */
+    /* overlay + círculo central */
     #global-overlay {
       position: fixed; inset: 0; z-index: 8880;
-      background: rgba(238,240,245,0.45);
-      backdrop-filter: blur(2px);
-      -webkit-backdrop-filter: blur(2px);
+      background: rgba(238,240,245,0.55);
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
       display: none; pointer-events: all;
+      align-items: center; justify-content: center;
+    }
+    #global-overlay.visible { display: flex; }
+    .loader-ring {
+      width: 64px; height: 64px;
+      transform: rotate(-90deg);
+    }
+    .loader-ring-bg { fill: none; stroke: rgba(79,128,255,0.12); stroke-width: 5; }
+    .loader-ring-fill {
+      fill: none; stroke-width: 5; stroke-linecap: round;
+      stroke: url(#loaderGrad);
+      stroke-dasharray: 170;
+      stroke-dashoffset: 170;
+      transition: stroke-dashoffset 0.25s ease;
     }
 
     /* ── Banner flotante proyecciones pendientes ── */
@@ -455,30 +505,54 @@
     </div>
   </div>
 
-  <div class="sidebar-section">
-    <div class="sidebar-section-label">Facturación</div>
-    <a class="nav-item active" onclick="showView('dashboard',this)">Dashboard</a>
-    <a class="nav-item" onclick="showView('clientes',this)">Clientes</a>
-    <a class="nav-item" onclick="showView('sitios',this)">Sitios</a>
-    <a class="nav-item" onclick="showView('seguimiento',this)">
-      Seguimiento
-      <span class="nav-badge" id="badge-seg">0</span>
-    </a>
+  <!-- Grupo: Facturación (colapsable) -->
+  <div class="sidebar-section" style="padding-top:14px;">
+    <div class="nav-group-header open" id="grp-facturacion" onclick="toggleNavGroup('facturacion')">
+      <span>Facturación</span>
+      <span class="nav-group-arrow">▶</span>
+    </div>
+    <div class="nav-subitems open" id="sub-facturacion">
+      <a class="nav-subitem active" id="nav-dashboard" onclick="showView('dashboard',this)">Dashboard</a>
+      <a class="nav-subitem" id="nav-sitios" onclick="showView('sitios',this)">Sitios</a>
+      <a class="nav-subitem" id="nav-seguimiento" onclick="showView('seguimiento',this)">
+        Seguimiento
+        <span class="nav-badge" id="badge-seg">0</span>
+      </a>
+    </div>
   </div>
 
   <div class="sidebar-sep"></div>
 
-  <div class="sidebar-section">
-    <div class="sidebar-section-label">Reportes</div>
-    <a class="nav-item" onclick="showView('panel',this)">Panel General</a>
+  <!-- Grupo: Datos (colapsable) -->
+  <div class="sidebar-section" style="padding-top:6px;">
+    <div class="nav-group-header" id="grp-datos" onclick="toggleNavGroup('datos')">
+      <span>Datos</span>
+      <span class="nav-group-arrow">▶</span>
+    </div>
+    <div class="nav-subitems" id="sub-datos">
+      <a class="nav-subitem" id="nav-clientes" onclick="showView('clientes',this)">Clientes</a>
+    </div>
   </div>
 
   <div class="sidebar-sep"></div>
 
-  <div class="sidebar-section">
+  <!-- Grupo: Reportes (colapsable) -->
+  <div class="sidebar-section" style="padding-top:6px;">
+    <div class="nav-group-header" id="grp-reportes" onclick="toggleNavGroup('reportes')">
+      <span>Reportes</span>
+      <span class="nav-group-arrow">▶</span>
+    </div>
+    <div class="nav-subitems" id="sub-reportes">
+      <a class="nav-subitem" id="nav-panel" onclick="showView('panel',this)">Panel General</a>
+    </div>
+  </div>
+
+  <div class="sidebar-sep"></div>
+
+  <div class="sidebar-section" style="padding-top:6px;">
     <div class="sidebar-section-label">Próximamente</div>
-    <a class="nav-item" style="opacity:.4;cursor:not-allowed;">Inventario</a>
-    <a class="nav-item" style="opacity:.4;cursor:not-allowed;">Recursos Humanos</a>
+    <a class="nav-subitem" style="opacity:.4;cursor:not-allowed;">Inventario</a>
+    <a class="nav-subitem" style="opacity:.4;cursor:not-allowed;">Recursos Humanos</a>
   </div>
 
   <div class="sidebar-footer">
@@ -566,15 +640,9 @@
     </div>
 
     <!-- Fila 3 -->
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-header"><div><div class="card-title">Objetivos por cliente</div><div class="card-sub">Facturado acumulado</div></div></div>
-        <div id="dash-objetivos"><div style="text-align:center;padding:30px 0;color:var(--text-light);font-size:13px;">Sin datos</div></div>
-      </div>
-      <div class="card">
-        <div class="card-header"><div><div class="card-title">Últimas líneas</div><div class="card-sub">Actividad reciente</div></div></div>
-        <div id="dash-recientes"><div class="empty-state"><span class="es-icon">📄</span><p>Sin registros aún.</p></div></div>
-      </div>
+    <div class="card">
+      <div class="card-header"><div><div class="card-title">Objetivos por cliente</div><div class="card-sub">Facturado acumulado</div></div></div>
+      <div id="dash-objetivos"><div style="text-align:center;padding:30px 0;color:var(--text-light);font-size:13px;">Sin datos</div></div>
     </div>
   </div>
 
@@ -1246,8 +1314,22 @@
 
 <!-- Barra de progreso global — tope de pantalla -->
 <div id="global-progress-bar"><div id="global-progress-fill"></div></div>
-<!-- Overlay semitransparente -->
-<div id="global-overlay"></div>
+<!-- Overlay con círculo donut -->
+<div id="global-overlay">
+  <svg class="loader-ring" viewBox="0 0 64 64">
+    <defs>
+      <linearGradient id="loaderGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#4f80ff"/>
+        <stop offset="50%" stop-color="#2dd4bf"/>
+        <stop offset="100%" stop-color="#a78bfa"/>
+      </linearGradient>
+    </defs>
+    <circle class="loader-ring-bg" cx="32" cy="32" r="27"/>
+    <circle class="loader-ring-fill" id="loader-ring-fill" cx="32" cy="32" r="27"/>
+  </svg>
+</div>
+<!-- Spinner circular centrado -->
+
 <!-- Tooltip global para sitios -->
 <div id="sit-global-tooltip" class="sit-tooltip"></div>
 
@@ -1294,7 +1376,7 @@ function toast(msg, tipo = 'ok') {
 }
 
 // Spinner global
-/* ══ BARRA DE PROGRESO GLOBAL ══ */
+/* ══ INDICADOR DE CARGA — donut SVG centrado ══ */
 let _progressTimer = null;
 let _progressVal   = 0;
 
@@ -1302,37 +1384,39 @@ function setLoading(on) {
   const bar     = document.getElementById('global-progress-bar');
   const fill    = document.getElementById('global-progress-fill');
   const overlay = document.getElementById('global-overlay');
-  if (!bar || !fill || !overlay) return;
+  const ring    = document.getElementById('loader-ring-fill');
+  if (!overlay) return;
+
+  const circumference = 170; // 2π × 27
 
   if (on) {
-    // Mostrar barra y overlay
     _progressVal = 0;
-    fill.style.transition = 'width 0.3s ease';
-    fill.style.width = '0%';
-    bar.style.display = 'block';
-    overlay.style.display = 'block';
+    if (ring) ring.style.strokeDashoffset = circumference;
+    if (fill) { fill.style.transition = 'width 0.3s ease'; fill.style.width = '0%'; }
+    if (bar)  bar.style.display = 'block';
+    overlay.classList.add('visible');
 
-    // Avance ficticio: rápido al principio, se frena cerca del 85%
     clearInterval(_progressTimer);
     _progressTimer = setInterval(() => {
       if (_progressVal < 30)      _progressVal += 8;
       else if (_progressVal < 60) _progressVal += 4;
       else if (_progressVal < 80) _progressVal += 2;
       else if (_progressVal < 88) _progressVal += 0.5;
-      // Se detiene en 88 — espera la respuesta real
       if (_progressVal >= 88) { clearInterval(_progressTimer); _progressVal = 88; }
-      fill.style.width = _progressVal + '%';
+      const offset = circumference - (circumference * _progressVal / 100);
+      if (ring) ring.style.strokeDashoffset = offset;
+      if (fill) fill.style.width = _progressVal + '%';
     }, 120);
 
   } else {
-    // Completar al 100% y ocultar
     clearInterval(_progressTimer);
-    fill.style.transition = 'width 0.2s ease';
-    fill.style.width = '100%';
-    overlay.style.display = 'none';
+    if (ring) ring.style.strokeDashoffset = 0;
+    if (fill) { fill.style.transition = 'width 0.2s ease'; fill.style.width = '100%'; }
     setTimeout(() => {
-      bar.style.display = 'none';
-      fill.style.width  = '0%';
+      overlay.classList.remove('visible');
+      if (bar)  { bar.style.display = 'none'; }
+      if (fill) fill.style.width = '0%';
+      if (ring) ring.style.strokeDashoffset = circumference;
       _progressVal = 0;
     }, 300);
   }
@@ -1379,18 +1463,25 @@ async function cargarTodo() {
       obs:       get(r, 'OBSERVACION')
     })).filter(s => s.id.trim() !== '');
 
-    lineas = (data.facturacion || []).map(r => ({
-      id:             get(r, 'ID'),
-      sitioId:        get(r, 'SITIO_ID'),
-      clienteId:      get(r, 'CLIENTE_ID'),
-      pct:            parseInt(get(r, 'PCT'))     || 0,
-      monto:          Math.round(parseFloat(String(get(r, 'MONTO')).replace(/\$/g,'').replace(/\./g,'').replace(',','.').trim()) || 0),
-      mes:            get(r, 'MES'),
-      fechaSolicitud: get(r, 'FECHA_SOLICITUD'),
-      fechaFactura:   get(r, 'FECHA_FACTURA'),
-      nroFactura:     get(r, 'NRO_FACTURA'),
-      estado:         get(r, 'ESTADO') || 'Proyectado'
-    })).filter(l => l.id.trim() !== '');
+    lineas = (data.facturacion || []).map(r => {
+      // sitioId puede venir como "CPU724||6101HG..." (uid) o solo "CPU724"
+      const rawSitioId = get(r, 'SITIO_ID');
+      const sitioId = rawSitioId.includes('||') ? rawSitioId.split('||')[0] : rawSitioId;
+      const poNroLinea = rawSitioId.includes('||') ? rawSitioId.split('||')[1] : '';
+      return {
+        id:             get(r, 'ID'),
+        sitioId,
+        poNroLinea,     // guardamos la PO de la línea para discriminar sitios con mismo ID
+        clienteId:      get(r, 'CLIENTE_ID'),
+        pct:            parseInt(get(r, 'PCT'))     || 0,
+        monto:          Math.round(parseFloat(String(get(r, 'MONTO')).replace(/\$/g,'').replace(/\./g,'').replace(',','.').trim()) || 0),
+        mes:            get(r, 'MES'),
+        fechaSolicitud: get(r, 'FECHA_SOLICITUD'),
+        fechaFactura:   get(r, 'FECHA_FACTURA'),
+        nroFactura:     get(r, 'NRO_FACTURA'),
+        estado:         get(r, 'ESTADO') || 'Proyectado'
+      };
+    }).filter(l => l.id.trim() !== '');
 
     console.log('Clientes parseados:', clientes);
     console.log('Sitios parseados:', sitios);
@@ -1439,11 +1530,22 @@ function initColorPicker() {
 }
 
 /* ── NAV ── */
+function toggleNavGroup(group) {
+  const header  = document.getElementById('grp-' + group);
+  const subitems= document.getElementById('sub-' + group);
+  if (!header || !subitems) return;
+  header.classList.toggle('open');
+  subitems.classList.toggle('open');
+}
+
 function showView(name, el) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + name).classList.add('active');
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  if (el) el.classList.add('active');
+  // Limpiar activos en nav-item y nav-subitem
+  document.querySelectorAll('.nav-item, .nav-subitem').forEach(n => n.classList.remove('active'));
+  // Activar el subitem correcto
+  const target = document.getElementById('nav-' + name);
+  if (target) target.classList.add('active');
   if (name === 'dashboard')   actualizarDashboard();
   if (name === 'panel')       actualizarPanel();
   if (name === 'clientes')    renderClientes();
@@ -1689,25 +1791,22 @@ async function guardarEdicionSitio() {
 }
 
 function getSitStatus(uid) {
-  // uid = "ID||PO_NRO". Lineas en Sheets usan SITIO_ID = ID (sin PO).
-  // Para distinguir sitios con mismo ID, cruzamos también por poNro en la línea vs el sitio.
-  const s   = getSit(uid);
+  const s = getSit(uid);
   if (!s) return { label: 'Sin asignar', color: 'rgba(150,160,190,0.15)', text: '#9aa0b8' };
 
-  // Lineas confirmadas que pertenecen a este sitio exacto (mismo ID y mismo poNro)
+  const sitiosConMismoId = sitios.filter(x => x.id === s.id);
+
   const ls = lineas.filter(l => {
     if (l.sitioId !== s.id) return false;
-    // Si hay múltiples sitios con el mismo ID, cruzar por poNro guardado en la línea
-    // Las líneas no guardan poNro directamente, así que usamos el monto para discriminar
-    // La mejor estrategia: si solo hay 1 sitio con ese ID, no hay ambigüedad
-    const sitiosConMismoId = sitios.filter(x => x.id === s.id);
     if (sitiosConMismoId.length === 1) return true;
-    // Varios sitios con mismo ID: cruzar por monto aproximado (pct * poTotal / 100)
+    // Múltiples sitios con mismo ID: usar poNroLinea si está disponible
+    if (l.poNroLinea && s.poNro) return l.poNroLinea === s.poNro;
+    // Fallback: discriminar por monto
     const montoEsperado = s.po * l.pct / 100;
-    return Math.abs(l.monto - montoEsperado) < 1;
+    return Math.abs(l.monto - montoEsperado) < Math.max(1, montoEsperado * 0.01);
   });
 
-  const lp = (_proyPendientes || []).filter(p => p.sitioId === uid);
+  const lp  = (_proyPendientes || []).filter(p => p.sitioId === uid);
   const all = [...ls, ...lp];
 
   if (!all.length) return { label: 'Sin asignar', color: 'rgba(150,160,190,0.15)', text: '#9aa0b8' };
@@ -1751,7 +1850,12 @@ function renderSitios(filtro = '', filtros = null) {
     };
   }
 
-  let lista = [...sitios];
+  let lista = [...sitios].sort((a,b) => {
+    // Primero por cliente, luego por ID de sitio
+    if (a.clienteId < b.clienteId) return -1;
+    if (a.clienteId > b.clienteId) return 1;
+    return a.id.localeCompare(b.id);
+  });
   if (filtros) {
     if (filtros.texto)    lista = lista.filter(s => s.id.toLowerCase().includes(filtros.texto) || s.localidad.toLowerCase().includes(filtros.texto) || s.clienteId.toLowerCase().includes(filtros.texto));
     if (filtros.cliente)  lista = lista.filter(s => s.clienteId === filtros.cliente);
@@ -1759,7 +1863,7 @@ function renderSitios(filtro = '', filtros = null) {
     if (filtros.concepto) lista = lista.filter(s => s.concepto   === filtros.concepto);
     if (filtros.status) {
       lista = lista.filter(s => {
-        const st = getSitStatus(s.id);
+        const st = getSitStatus(s.uid);
         if (filtros.status === 'Sin asignar') return st.label === 'Sin asignar';
         if (filtros.status === 'Proyectado')  return st.label === 'Proyectado';
         if (filtros.status === 'Solicitado')  return st.label === 'Solicitado';
@@ -1780,7 +1884,15 @@ function renderSitios(filtro = '', filtros = null) {
     const cli = getCli(s.clienteId);
     const cb  = s.concepto === 'Básico' ? 'badge-blue' : 'badge-violet';
     const st  = getSitStatus(s.uid);
-    return `<tr
+    // Facturado 100% = pctFac de lineas confirmadas = 100
+    const pctFacTotal = lineas.filter(l => {
+      if (l.estado !== 'Facturado') return false;
+      const iguales = sitios.filter(x => x.id === s.id);
+      if (iguales.length === 1) return l.sitioId === s.id;
+      return l.sitioId === s.id && Math.abs(l.monto - s.po * l.pct / 100) < 1;
+    }).reduce((a,l) => a + l.pct, 0);
+    const rowClass = pctFacTotal >= 100 ? 'row-facturado-100' : '';
+    return `<tr class="${rowClass}"
       onmouseenter="showSitTooltip(event,'${s.uid}')"
       onmousemove="moveSitTooltip(event)"
       onmouseleave="hideSitTooltip()">
@@ -2293,6 +2405,7 @@ function renderSeguimiento() {
     }
 
     let badgeCls = 'badge-blue', accion = '';
+    const rowFacClass = l.estado === 'Facturado' ? 'row-facturado-100' : '';
     if (l.estado === 'Proyectado') {
       accion = `<button class="btn btn-amber btn-sm" onclick="abrirModalSolicitud('${l.id}')">Solicitar</button>`;
     } else if (l.estado === 'Solicitado') {
@@ -2304,7 +2417,8 @@ function renderSeguimiento() {
     }
     // Redondear monto para display
     const montoDisplay = l.monto ? fmt(Math.round(l.monto)) : '—';
-    return `<tr>
+    const rowCls = l.estado === 'Facturado' ? 'row-facturado-100' : '';
+    return `<tr class="${rowCls}">
       <td style="${tc}">
         <button onclick="abrirEliminarLinea('${l.id}')" title="Eliminar línea"
           style="background:none;border:none;cursor:pointer;color:rgba(248,113,113,0.55);font-size:14px;line-height:1;padding:2px 4px;border-radius:50%;transition:color .2s;"
@@ -2581,51 +2695,27 @@ function actualizarDashboard() {
   const pctPSol   = totalTodo > 0 ? Math.round((totalSol + totalFac) / totalTodo * 100) : 0;
   const pctSFac   = (totalSol + totalFac) > 0 ? Math.round(totalFac / (totalSol + totalFac) * 100) : 0;
 
-  // KPI cards
+  // KPI cards — 4 cards: Facturado, Proyectado, Proy→Sol, Sol→Fac
   const row = document.getElementById('dash-kpi-row');
-  if (!row) return; // vista no activa aún
-  row.className = 'stats-row-5';
+  if (!row) return;
+  row.className = 'stats-row-4';
   row.innerHTML =
-    kpiCard('blue',   'Facturación mensual',
+    kpiCard('blue',  'Facturación mensual',
       fmt(totalFac), 'Líneas facturadas', `${facturadas.length} línea${facturadas.length!==1?'s':''}`,
       totalTodo > 0 ? Math.round(totalFac/totalTodo*100) : 0
     ) +
-    kpiCard('amber',  'Proyectados',
+    kpiCard('amber', 'Proyectados',
       fmt(totalProy), 'Sin iniciar', `${proyectadas.length} línea${proyectadas.length!==1?'s':''}`,
       totalTodo > 0 ? Math.round(totalProy/totalTodo*100) : 0
     ) +
-    kpiCard('violet', 'Solicitados',
-      fmt(totalSol), 'En proceso de emisión', `${solicitadas.length} línea${solicitadas.length!==1?'s':''}`,
-      totalTodo > 0 ? Math.round(totalSol/totalTodo*100) : 0
+    kpiCard('teal',  'Proyectados → Solicitados',
+      fmt(totalSol + totalFac), `de ${fmt(totalTodo)} total`, `${pctPSol}% avanzado`, pctPSol
     ) +
-    kpiCard('teal',   'Proyectados → Solicitados',
-      fmt(totalSol + totalFac), `de ${fmt(totalTodo)} total`, `${pctPSol}% avanzado`,
-      pctPSol
-    ) +
-    kpiCard('rose',   'Solicitados → Facturados',
-      fmt(totalFac), `de ${fmt(totalSol + totalFac)} solicitado`, `${pctSFac}% facturado`,
-      pctSFac
+    kpiCard('rose',  'Solicitados → Facturados',
+      fmt(totalFac), `de ${fmt(totalSol + totalFac)} solicitado`, `${pctSFac}% facturado`, pctSFac
     );
 
-  // Recientes — últimas 5 del filtro activo
-  const rec = document.getElementById('dash-recientes');
-  if (!lf.length) { rec.innerHTML = `<div class="empty-state"><span class="es-icon">📄</span><p>Sin registros para este mes.</p></div>`; }
-  else {
-    rec.innerHTML = [...lf].reverse().slice(0,5).map(l => {
-      const cli = getCli(l.clienteId);
-      let bc = 'badge-blue';
-      if (l.estado==='Solicitado') bc='badge-amber';
-      if (l.estado==='Facturado')  bc='badge-green';
-      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(200,205,220,0.25);">
-        ${cli?dot(cli.color):''}
-        <div style="flex:1;"><div style="font-weight:600;font-size:13px;">${l.sitioId}</div><div style="font-size:12px;color:var(--text-light);">${mesLabel(l.mes)} · ${l.pct}%</div></div>
-        <div style="font-weight:700;font-size:13px;">${fmt(l.monto)}</div>
-        <span class="badge ${bc}">${l.estado}</span>
-      </div>`;
-    }).join('');
-  }
-
-  // Objetivos por cliente (sobre líneas filtradas)
+  // Objetivos por cliente
   const obj = document.getElementById('dash-objetivos');
   if (!clientes.length) { obj.innerHTML = `<div style="text-align:center;padding:30px 0;color:var(--text-light);font-size:13px;">Sin clientes</div>`; }
   else {
@@ -2706,13 +2796,12 @@ function actualizarPanel() {
   const pctPSol     = totalTodo > 0 ? Math.round((totalSol+totalFac)/totalTodo*100) : 0;
 
   const row = document.getElementById('panel-kpi-row');
-  row.className = 'stats-row-5';
+  row.className = 'stats-row-4';
   row.innerHTML =
-    kpiCard('blue',   'Total facturado',          fmt(totalFac),  `${facturadas.length} líneas`,  null, totalTodo>0?Math.round(totalFac/totalTodo*100):0) +
-    kpiCard('amber',  'Proyectado',               fmt(totalProy), `${proyectadas.length} líneas`, null, totalTodo>0?Math.round(totalProy/totalTodo*100):0) +
-    kpiCard('violet', 'Solicitado',               fmt(totalSol),  `${solicitadas.length} líneas`, null, totalTodo>0?Math.round(totalSol/totalTodo*100):0) +
-    kpiCard('teal',   'Proyectados → Solicitados', fmt(totalSol+totalFac), `de ${fmt(totalTodo)}`, `${pctPSol}% avanzado`, pctPSol) +
-    kpiCard('rose',   'Solicitados → Facturados',  fmt(totalFac),  `de ${fmt(totalSol+totalFac)}`,`${pctSFac}% facturado`, pctSFac);
+    kpiCard('blue',  'Total facturado',           fmt(totalFac),  `${facturadas.length} líneas`,  null, totalTodo>0?Math.round(totalFac/totalTodo*100):0) +
+    kpiCard('amber', 'Proyectado',                fmt(totalProy), `${proyectadas.length} líneas`, null, totalTodo>0?Math.round(totalProy/totalTodo*100):0) +
+    kpiCard('teal',  'Proyectados → Solicitados', fmt(totalSol+totalFac), `de ${fmt(totalTodo)}`, `${pctPSol}% avanzado`, pctPSol) +
+    kpiCard('rose',  'Solicitados → Facturados',  fmt(totalFac),  `de ${fmt(totalSol+totalFac)}`, `${pctSFac}% facturado`, pctSFac);
 
   document.getElementById('donut2-total').textContent = lf.length;
   document.getElementById('leg-fact').textContent  = facturadas.length;
@@ -2778,22 +2867,30 @@ function showSitTooltip(event, uid) {
   const lineasSitio = lineas.filter(l => {
     if (l.sitioId !== s.id) return false;
     if (sitiosConMismoId.length === 1) return true;
-    return Math.abs(l.monto - s.po * l.pct / 100) < 1;
+    // Múltiples sitios con mismo ID: usar poNroLinea (igual que getSitStatus)
+    if (l.poNroLinea && s.poNro) return l.poNroLinea === s.poNro;
+    // Fallback: discriminar por monto
+    const montoEsperado = s.po * l.pct / 100;
+    return Math.abs(l.monto - montoEsperado) < Math.max(1, montoEsperado * 0.01);
   });
-  let html = `<div style="color:#7eb8ff;font-weight:700;margin-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:.7px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:6px;">📍 ${s.id}${sitiosConMismoId.length > 1 ? ' · PO '+s.poNro : ''} — Seguimiento</div>`;
+  const poLabel = (sitiosConMismoId.length > 1 && s.poNro) ? `<div style="font-size:11px;color:#94a3b8;margin-bottom:8px;">PO ${s.poNro}</div>` : '';
+  let html = `
+    <div style="font-size:20px;font-weight:800;color:#ffffff;letter-spacing:-.5px;margin-bottom:2px;">${s.id}</div>
+    ${poLabel}
+    <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:6px;">Seguimiento</div>`;
   if (!lineasSitio.length) {
-    html += `<span style="color:#94a3b8;font-style:italic;">Sin líneas en seguimiento</span>`;
+    html += `<span style="color:#94a3b8;font-style:italic;font-size:12px;">Sin líneas en seguimiento</span>`;
   } else {
     html += lineasSitio.map(l => {
-      let color = '#93c5fd';           // azul claro - proyectado
-      if (l.estado === 'Solicitado') color = '#fde68a';  // amarillo claro
-      if (l.estado === 'Facturado')  color = '#6ee7b7';  // verde claro
-      return `<div style="display:flex;gap:8px;align-items:center;">
-        <span style="color:${color};font-weight:800;min-width:34px;">${l.pct}%</span>
-        <span style="color:#cbd5e1;">${l.estado}</span>
-        <span style="color:#94a3b8;">·</span>
-        <span style="color:#e2e8f0;font-weight:600;">${mesLabel(l.mes)}</span>
-        <span style="color:#64748b;margin-left:auto;">${fmt(l.monto)}</span>
+      let color = '#93c5fd';
+      if (l.estado === 'Solicitado') color = '#fde68a';
+      if (l.estado === 'Facturado')  color = '#6ee7b7';
+      return `<div style="display:flex;gap:8px;align-items:center;padding:3px 0;">
+        <span style="color:${color};font-weight:800;min-width:36px;font-size:13px;">${l.pct}%</span>
+        <span style="color:#cbd5e1;font-size:12px;">${l.estado}</span>
+        <span style="color:#475569;font-size:11px;">·</span>
+        <span style="color:#e2e8f0;font-size:12px;">${mesLabel(l.mes)}</span>
+        <span style="color:#64748b;margin-left:auto;font-size:12px;">${fmt(Math.round(l.monto))}</span>
       </div>`;
     }).join('');
   }
