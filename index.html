@@ -389,28 +389,7 @@
       0%   { background-position: 200% 0; }
       100% { background-position: -200% 0; }
     }
-    /* overlay + círculo central */
-    #global-overlay {
-      position: fixed; inset: 0; z-index: 8880;
-      background: rgba(238,240,245,0.55);
-      backdrop-filter: blur(3px);
-      -webkit-backdrop-filter: blur(3px);
-      display: none; pointer-events: all;
-      align-items: center; justify-content: center;
-    }
-    #global-overlay.visible { display: flex; }
-    .loader-ring {
-      width: 64px; height: 64px;
-      transform: rotate(-90deg);
-    }
-    .loader-ring-bg { fill: none; stroke: rgba(79,128,255,0.12); stroke-width: 5; }
-    .loader-ring-fill {
-      fill: none; stroke-width: 5; stroke-linecap: round;
-      stroke: url(#loaderGrad);
-      stroke-dasharray: 170;
-      stroke-dashoffset: 170;
-      transition: stroke-dashoffset 0.25s ease;
-    }
+
 
     /* ── Banner flotante proyecciones pendientes ── */
     #banner-proyecciones {
@@ -822,6 +801,9 @@
           </select>
           <select class="form-select" style="width:160px;" id="seg-filtro-sitio" onchange="aplicarFiltrosSeg()">
             <option value="">Todos los sitios</option>
+          </select>
+          <select class="form-select" style="width:150px;" id="seg-filtro-mes" onchange="aplicarFiltrosSeg()">
+            <option value="">Todos los meses</option>
           </select>
           <select class="form-select" style="width:160px;" id="seg-filtro-estado" onchange="aplicarFiltrosSeg()">
             <option value="">Todos los estados</option>
@@ -1314,22 +1296,6 @@
 
 <!-- Barra de progreso global — tope de pantalla -->
 <div id="global-progress-bar"><div id="global-progress-fill"></div></div>
-<!-- Overlay con círculo donut -->
-<div id="global-overlay">
-  <svg class="loader-ring" viewBox="0 0 64 64">
-    <defs>
-      <linearGradient id="loaderGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%" stop-color="#4f80ff"/>
-        <stop offset="50%" stop-color="#2dd4bf"/>
-        <stop offset="100%" stop-color="#a78bfa"/>
-      </linearGradient>
-    </defs>
-    <circle class="loader-ring-bg" cx="32" cy="32" r="27"/>
-    <circle class="loader-ring-fill" id="loader-ring-fill" cx="32" cy="32" r="27"/>
-  </svg>
-</div>
-<!-- Spinner circular centrado -->
-
 <!-- Tooltip global para sitios -->
 <div id="sit-global-tooltip" class="sit-tooltip"></div>
 
@@ -1375,26 +1341,20 @@ function toast(msg, tipo = 'ok') {
   t._timer = setTimeout(() => { t.style.opacity = '0'; }, 2800);
 }
 
-// Spinner global
-/* ══ INDICADOR DE CARGA — donut SVG centrado ══ */
+// Indicador de carga — barra superior
 let _progressTimer = null;
 let _progressVal   = 0;
 
 function setLoading(on) {
-  const bar     = document.getElementById('global-progress-bar');
-  const fill    = document.getElementById('global-progress-fill');
-  const overlay = document.getElementById('global-overlay');
-  const ring    = document.getElementById('loader-ring-fill');
-  if (!overlay) return;
-
-  const circumference = 170; // 2π × 27
+  const bar  = document.getElementById('global-progress-bar');
+  const fill = document.getElementById('global-progress-fill');
+  if (!bar) return;
 
   if (on) {
     _progressVal = 0;
-    if (ring) ring.style.strokeDashoffset = circumference;
-    if (fill) { fill.style.transition = 'width 0.3s ease'; fill.style.width = '0%'; }
-    if (bar)  bar.style.display = 'block';
-    overlay.classList.add('visible');
+    fill.style.transition = 'width 0.3s ease';
+    fill.style.width = '0%';
+    bar.style.display = 'block';
 
     clearInterval(_progressTimer);
     _progressTimer = setInterval(() => {
@@ -1403,20 +1363,16 @@ function setLoading(on) {
       else if (_progressVal < 80) _progressVal += 2;
       else if (_progressVal < 88) _progressVal += 0.5;
       if (_progressVal >= 88) { clearInterval(_progressTimer); _progressVal = 88; }
-      const offset = circumference - (circumference * _progressVal / 100);
-      if (ring) ring.style.strokeDashoffset = offset;
-      if (fill) fill.style.width = _progressVal + '%';
+      fill.style.width = _progressVal + '%';
     }, 120);
 
   } else {
     clearInterval(_progressTimer);
-    if (ring) ring.style.strokeDashoffset = 0;
-    if (fill) { fill.style.transition = 'width 0.2s ease'; fill.style.width = '100%'; }
+    fill.style.transition = 'width 0.2s ease';
+    fill.style.width = '100%';
     setTimeout(() => {
-      overlay.classList.remove('visible');
-      if (bar)  { bar.style.display = 'none'; }
-      if (fill) fill.style.width = '0%';
-      if (ring) ring.style.strokeDashoffset = circumference;
+      bar.style.display = 'none';
+      fill.style.width = '0%';
       _progressVal = 0;
     }, 300);
   }
@@ -2179,12 +2135,13 @@ function descartarProyecciones() {
   actualizarBannerProyecciones();
   renderSitios(); // limpiar status visual
 }
-let filtroTextoSeg = '', filtroEstadoSeg = '', filtroClienteSeg = '', filtroSitioSeg = '';
+let filtroTextoSeg = '', filtroEstadoSeg = '', filtroClienteSeg = '', filtroSitioSeg = '', filtroMesSeg = '';
 
 function aplicarFiltrosSeg() {
   filtroTextoSeg   = (document.getElementById('seg-filtro-texto')?.value   || '').toLowerCase();
   filtroClienteSeg = document.getElementById('seg-filtro-cliente')?.value  || '';
   filtroSitioSeg   = document.getElementById('seg-filtro-sitio')?.value    || '';
+  filtroMesSeg     = document.getElementById('seg-filtro-mes')?.value      || '';
   filtroEstadoSeg  = document.getElementById('seg-filtro-estado')?.value   || '';
   renderSeguimiento();
 }
@@ -2374,6 +2331,15 @@ function renderSeguimiento() {
     sitios.forEach(s => selSit.innerHTML += `<option value="${s.id}">${s.id}</option>`);
     if (prev) selSit.value = prev;
   }
+  // Poblar select de mes con los meses presentes en las líneas
+  const selMes = document.getElementById('seg-filtro-mes');
+  if (selMes) {
+    const prev = selMes.value;
+    const mesesUnicos = [...new Set(lineas.map(l => l.mes).filter(Boolean))].sort();
+    selMes.innerHTML = '<option value="">Todos los meses</option>';
+    mesesUnicos.forEach(m => selMes.innerHTML += `<option value="${m}">${mesLabel(m)}</option>`);
+    if (prev && mesesUnicos.includes(prev)) selMes.value = prev;
+  }
 
   const tbody = document.getElementById('tabla-seguimiento');
   let lista = [...lineas];
@@ -2381,6 +2347,24 @@ function renderSeguimiento() {
   if (filtroClienteSeg) lista = lista.filter(l => l.clienteId === filtroClienteSeg);
   if (filtroSitioSeg)   lista = lista.filter(l => l.sitioId   === filtroSitioSeg);
   if (filtroEstadoSeg)  lista = lista.filter(l => l.estado    === filtroEstadoSeg);
+  // Filtro por mes: aplica sobre mes proyectado, fecha solicitud o fecha factura
+  if (filtroMesSeg) {
+    lista = lista.filter(l =>
+      l.mes === filtroMesSeg ||
+      (l.fechaSolicitud && l.fechaSolicitud.startsWith(filtroMesSeg)) ||
+      (l.fechaFactura   && l.fechaFactura.startsWith(filtroMesSeg))
+    );
+  }
+
+  // Ordenar: por ID de sitio, luego por PO, luego por % (pct)
+  lista.sort((a, b) => {
+    const sidA = a.sitioId || '', sidB = b.sitioId || '';
+    if (sidA < sidB) return -1;
+    if (sidA > sidB) return 1;
+    if ((a.poNroLinea || '') < (b.poNroLinea || '')) return -1;
+    if ((a.poNroLinea || '') > (b.poNroLinea || '')) return 1;
+    return (a.pct || 0) - (b.pct || 0);
+  });
 
   if (!lista.length) { tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state"><span class="es-icon">🧾</span><p>Sin líneas registradas.</p></div></td></tr>`; return; }
 
