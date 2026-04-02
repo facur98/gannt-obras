@@ -406,6 +406,32 @@
       white-space: nowrap;
     }
     #banner-proyecciones.visible { display: flex; }
+    #banner-solicitudes {
+      display: none;
+      position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%);
+      z-index: 3000;
+      background: rgba(20,22,40,0.95); backdrop-filter: blur(16px);
+      border: 1px solid rgba(251,191,36,0.45); border-radius: 40px;
+      padding: 12px 20px 12px 16px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.3);
+      align-items: center; gap: 14px;
+      font-size: 13px; color: #e2e8f0;
+      white-space: nowrap;
+    }
+    #banner-solicitudes.visible { display: flex; }
+    #banner-facturas {
+      display: none;
+      position: fixed; bottom: 148px; left: 50%; transform: translateX(-50%);
+      z-index: 3000;
+      background: rgba(20,22,40,0.95); backdrop-filter: blur(16px);
+      border: 1px solid rgba(45,212,191,0.45); border-radius: 40px;
+      padding: 12px 20px 12px 16px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.3);
+      align-items: center; gap: 14px;
+      font-size: 13px; color: #e2e8f0;
+      white-space: nowrap;
+    }
+    #banner-facturas.visible { display: flex; }
     .banner-badge {
       background: var(--accent-blue); color: #fff;
       font-size: 11px; font-weight: 800;
@@ -427,6 +453,7 @@
       cursor: pointer; transition: all .2s;
     }
     .banner-cancel:hover { background: rgba(255,255,255,0.15); color: #e2e8f0; }
+
   </style>
 </head>
 <body>
@@ -475,7 +502,7 @@
 </div>
 
 <!-- SIDEBAR -->
-<nav class="sidebar">
+<nav class="sidebar" id="sidebar-nav">
   <div class="sidebar-brand">
     <div class="logo-placeholder">T</div>
     <div>
@@ -897,6 +924,22 @@
   <button class="banner-cancel" onclick="descartarProyecciones()">Descartar</button>
 </div>
 
+<!-- Banner solicitudes pendientes -->
+<div id="banner-solicitudes">
+  <div class="banner-badge" style="background:var(--accent-amber);" id="banner-sol-count">0</div>
+  <span>solicitud<span id="banner-sol-plural">es</span> pendiente<span id="banner-sol-plural2">s</span> de confirmar</span>
+  <button class="banner-btn" style="background:var(--accent-amber);" onclick="abrirConfirmarSolicitudes()">Confirmar ahora</button>
+  <button class="banner-cancel" onclick="descartarSolicitudes()">Descartar</button>
+</div>
+
+<!-- Banner facturas pendientes -->
+<div id="banner-facturas">
+  <div class="banner-badge" style="background:var(--accent-teal);" id="banner-fac-count">0</div>
+  <span>factura<span id="banner-fac-plural">s</span> pendiente<span id="banner-fac-plural2">s</span> de confirmar</span>
+  <button class="banner-btn" style="background:var(--accent-teal);" onclick="abrirConfirmarFacturas()">Confirmar ahora</button>
+  <button class="banner-cancel" onclick="descartarFacturas()">Descartar</button>
+</div>
+
 <!-- MODAL — Confirmar traspaso a seguimiento -->
 <div class="modal-overlay" id="modal-confirmar-traspaso">
   <div class="modal" style="max-width:720px;width:95vw;">
@@ -1256,47 +1299,34 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-solicitud">
-  <div class="modal">
-    <div class="modal-title">Marcar solicitud de factura</div>
-    <input type="hidden" id="sol-idx" />
-    <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:18px;font-size:13px;color:var(--text-mid);">
-      <i class="fa-solid fa-circle-info" style="color:var(--accent-amber);margin-right:6px;"></i>
-      Registrá la fecha en que se realizó la solicitud de emisión de factura.
+<!-- MODAL — Confirmar solicitudes masivas -->
+<div class="modal-overlay" id="modal-confirmar-solicitudes">
+  <div class="modal" style="max-width:760px;width:95vw;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div class="modal-title" style="margin:0;">Confirmar solicitudes de factura</div>
+      <button onclick="cerrarModal()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-light);line-height:1;">✕</button>
     </div>
-    <div class="form-group">
-      <label class="form-label">Fecha de solicitud *</label>
-      <input class="form-input" type="date" id="sol-fecha" />
-    </div>
+    <div style="font-size:13px;color:var(--text-mid);margin-bottom:16px;">Se van a marcar como <strong>Solicitado</strong> las siguientes líneas:</div>
+    <div id="sol-resumen" style="background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.2);border-radius:var(--radius-sm);padding:4px 0;margin-bottom:22px;max-height:380px;overflow-y:auto;"></div>
     <div class="modal-footer">
       <button class="btn btn-glass" onclick="cerrarModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarSolicitud()"><i class="fa-solid fa-check"></i> Confirmar solicitud</button>
+      <button class="btn" style="background:var(--accent-amber);color:#fff;font-weight:600;padding:9px 20px;border-radius:var(--radius-sm);cursor:pointer;border:none;" onclick="ejecutarSolicitudes()">Confirmar solicitudes</button>
     </div>
   </div>
 </div>
 
-<!-- MODAL — Factura emitida -->
-<div class="modal-overlay" id="modal-factura">
-  <div class="modal">
-    <div class="modal-title">Registrar factura emitida</div>
-    <input type="hidden" id="fac-idx" />
-    <div style="background:rgba(45,212,191,0.08);border:1px solid rgba(45,212,191,0.25);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:18px;font-size:13px;color:var(--text-mid);">
-      <i class="fa-solid fa-circle-info" style="color:var(--accent-teal);margin-right:6px;"></i>
-      Ingresá la fecha real de emisión y el número de comprobante.
+<!-- MODAL — Confirmar facturas masivas -->
+<div class="modal-overlay" id="modal-confirmar-facturas">
+  <div class="modal" style="max-width:800px;width:95vw;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div class="modal-title" style="margin:0;">Confirmar facturas emitidas</div>
+      <button onclick="cerrarModal()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-light);line-height:1;">✕</button>
     </div>
-    <div class="form-row" style="grid-template-columns:1fr 1fr;">
-      <div class="form-group">
-        <label class="form-label">Fecha de facturación *</label>
-        <input class="form-input" type="date" id="fac-fecha" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">N° de factura *</label>
-        <input class="form-input" id="fac-numero" placeholder="0001-00001234" />
-      </div>
-    </div>
+    <div style="font-size:13px;color:var(--text-mid);margin-bottom:16px;">Completá el N° de factura para cada línea y confirmá:</div>
+    <div id="fac-resumen" style="background:rgba(45,212,191,0.05);border:1px solid rgba(45,212,191,0.2);border-radius:var(--radius-sm);padding:4px 0;margin-bottom:22px;max-height:420px;overflow-y:auto;"></div>
     <div class="modal-footer">
       <button class="btn btn-glass" onclick="cerrarModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarFactura()"><i class="fa-solid fa-check"></i> Registrar factura</button>
+      <button class="btn" style="background:var(--accent-teal);color:#fff;font-weight:600;padding:9px 20px;border-radius:var(--radius-sm);cursor:pointer;border:none;" onclick="ejecutarFacturas()">Confirmar facturas</button>
     </div>
   </div>
 </div>
@@ -1859,15 +1889,15 @@ function renderSitios(filtro = '', filtros = null) {
       onmouseenter="showSitTooltip(event,'${s.uid}')"
       onmousemove="moveSitTooltip(event)"
       onmouseleave="hideSitTooltip()">
-      <td style="font-weight:600;cursor:default;">${s.id}</td>
-      <td>${s.localidad}</td>
-      <td><span style="display:flex;align-items:center;justify-content:center;gap:6px;">${cli?dot(cli.color):''}${s.clienteId}</span></td>
-      <td><span class="badge ${cb}">${s.concepto}</span></td>
-      <td style="font-size:12px;color:var(--text-mid);">${s.poNro||'—'}</td>
-      <td style="font-weight:600;">${s.po ? fmt(s.po) : '—'}</td>
-      <td><span style="display:inline-block;padding:4px 11px;border-radius:20px;font-size:12px;font-weight:600;background:${st.color};color:${st.text};">${st.label}</span></td>
-      <td style="color:var(--text-mid);font-size:12px;">${s.obs||'—'}</td>
-      <td><span style="display:flex;align-items:center;justify-content:center;gap:6px;">
+      <td data-label="Sitio" style="font-weight:600;cursor:default;">${s.id}</td>
+      <td data-label="Localidad">${s.localidad}</td>
+      <td data-label="Cliente"><span style="display:flex;align-items:center;gap:6px;">${cli?dot(cli.color):''}${s.clienteId}</span></td>
+      <td data-label="Concepto"><span class="badge ${cb}">${s.concepto}</span></td>
+      <td data-label="N° PO" style="font-size:12px;color:var(--text-mid);">${s.poNro||'—'}</td>
+      <td data-label="Total PO" style="font-weight:600;">${s.po ? fmt(s.po) : '—'}</td>
+      <td data-label="Estado"><span style="display:inline-block;padding:4px 11px;border-radius:20px;font-size:12px;font-weight:600;background:${st.color};color:${st.text};">${st.label}</span></td>
+      <td data-label="Obs" style="color:var(--text-mid);font-size:12px;">${s.obs||'—'}</td>
+      <td><span style="display:flex;align-items:center;gap:6px;">
         <button class="btn btn-glass btn-sm" onclick="abrirProyectarSitio('${s.uid}')" title="Proyectar en seguimiento" style="color:var(--accent-blue);font-size:11px;font-weight:700;padding:5px 9px;">+Seg</button>
         <button class="btn btn-glass btn-sm" onclick="abrirEditarSitio('${s.uid}')" title="Editar">✏️</button>
         <button class="btn btn-rose btn-sm" onclick="eliminarSitio('${s.uid}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
@@ -2422,11 +2452,17 @@ function renderSeguimiento() {
 
     let badgeCls = 'badge-blue', accion = '';
     const rowFacClass = l.estado === 'Facturado' ? 'row-facturado-100' : '';
+    const enColaSol = _solPendientes.some(p => p.lineaId === l.id);
+    const enColaFac = _facPendientes.some(p => p.lineaId === l.id);
     if (l.estado === 'Proyectado') {
-      accion = `<button class="btn btn-amber btn-sm" onclick="abrirModalSolicitud('${l.id}')">Solicitar</button>`;
+      accion = enColaSol
+        ? `<span style="color:var(--accent-amber);font-size:12px;font-weight:600;">⏳ En cola</span>`
+        : `<button class="btn btn-amber btn-sm" onclick="abrirModalSolicitud('${l.id}')">Solicitar</button>`;
     } else if (l.estado === 'Solicitado') {
       badgeCls = 'badge-amber';
-      accion = `<button class="btn btn-teal btn-sm" onclick="abrirModalFactura('${l.id}')">Facturar</button>`;
+      accion = enColaFac
+        ? `<span style="color:var(--accent-teal);font-size:12px;font-weight:600;">⏳ En cola</span>`
+        : `<button class="btn btn-teal btn-sm" onclick="abrirModalFactura('${l.id}')">Facturar</button>`;
     } else if (l.estado === 'Facturado') {
       badgeCls = 'badge-green';
       accion = `<span style="color:var(--accent-teal);font-size:12px;font-weight:600;">✓ Completo</span>`;
@@ -2440,16 +2476,16 @@ function renderSeguimiento() {
           style="background:none;border:none;cursor:pointer;color:rgba(248,113,113,0.55);font-size:14px;line-height:1;padding:2px 4px;border-radius:50%;transition:color .2s;"
           onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(248,113,113,0.55)'">✕</button>
       </td>
-      <td style="${tc}font-weight:600;">${sitioDisplay}</td>
-      <td style="${tc}font-size:12px;color:var(--text-mid);">${poDisplay}</td>
-      <td style="${tc}">${clienteCell}</td>
-      <td style="${tc}"><span class="badge badge-blue">${l.pct}%</span></td>
-      <td style="${tc}font-weight:600;">${montoDisplay}</td>
-      <td style="${tc}">${mesLabel(l.mes)}</td>
-      <td style="${tc}">${fechaCorta(l.fechaSolicitud)}</td>
-      <td style="${tc}">${fechaCorta(l.fechaFactura)}</td>
-      <td style="${tc}font-size:12px;color:var(--text-mid);">${l.nroFactura||'—'}</td>
-      <td style="${tc}"><span class="badge ${badgeCls}">${l.estado}</span></td>
+      <td data-label="Sitio" style="${tc}font-weight:600;">${sitioDisplay}</td>
+      <td data-label="N° PO" style="${tc}font-size:12px;color:var(--text-mid);">${poDisplay}</td>
+      <td data-label="Cliente" style="${tc}">${clienteCell}</td>
+      <td data-label="%" style="${tc}"><span class="badge badge-blue">${l.pct}%</span></td>
+      <td data-label="Monto" style="${tc}font-weight:600;">${montoDisplay}</td>
+      <td data-label="Mes proy." style="${tc}">${mesLabel(l.mes)}</td>
+      <td data-label="F. Solicitud" style="${tc}">${fechaCorta(l.fechaSolicitud)}</td>
+      <td data-label="F. Facturación" style="${tc}">${fechaCorta(l.fechaFactura)}</td>
+      <td data-label="N° Factura" style="${tc}font-size:12px;color:var(--text-mid);">${l.nroFactura||'—'}</td>
+      <td data-label="Estado" style="${tc}"><span class="badge ${badgeCls}">${l.estado}</span></td>
       <td style="${tc}">
         <div style="display:flex;align-items:center;justify-content:center;gap:6px;">
           <button class="btn btn-glass btn-sm" onclick="abrirEditarLinea('${l.id}')" title="Editar" style="font-size:13px;padding:5px 8px;">✏️</button>
@@ -2593,52 +2629,198 @@ async function confirmarEliminarLinea() {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
   finally { setLoading(false); }
 }
-function abrirModalSolicitud(lineaId) {
-  document.getElementById('sol-idx').value = lineaId;
-  document.getElementById('sol-fecha').value = '';
-  document.getElementById('modal-solicitud').classList.add('open');
-}
-async function guardarSolicitud() {
-  const lineaId = document.getElementById('sol-idx').value;
-  const fecha   = document.getElementById('sol-fecha').value;
-  if (!fecha) return alert('Ingresá la fecha de solicitud.');
-  const linea = lineas.find(l => l.id === lineaId);
-  if (!linea) return alert('Línea no encontrada.');
-  setLoading(true);
-  try {
-    await apiPost('UPDATE', 'FACTURACION', { FECHA_SOLICITUD: fecha, ESTADO: 'Solicitado' }, lineaId);
-    linea.fechaSolicitud = fecha;
-    linea.estado = 'Solicitado';
-    cerrarModal(); renderSeguimiento(); actualizarDashboard(); actualizarBadge();
-    toast('Solicitud registrada ✓');
-  } catch(e) { toast('Error: ' + e.message, 'err'); }
-  finally { setLoading(false); }
+// ═══════════════════════════════════════════════════════
+//  COLA DE SOLICITUDES
+// ═══════════════════════════════════════════════════════
+let _solPendientes = []; // { lineaId, sitioId, poNro, clienteId, pct, monto, fecha }
+
+function hoy() {
+  const d = new Date();
+  return d.toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
-function abrirModalFactura(lineaId) {
-  document.getElementById('fac-idx').value = lineaId;
-  document.getElementById('fac-fecha').value = '';
-  document.getElementById('fac-numero').value = '';
-  document.getElementById('modal-factura').classList.add('open');
+function abrirModalSolicitud(lineaId) {
+  const l = lineas.find(x => x.id === lineaId);
+  if (!l) return;
+  // Evitar duplicado en cola
+  if (_solPendientes.find(p => p.lineaId === lineaId)) {
+    return toast('Esta línea ya está en la cola de solicitudes.', 'err');
+  }
+  const s = sitios.find(x => x.id === l.sitioId && (!l.poNroLinea || x.poNro === l.poNroLinea));
+  _solPendientes.push({
+    lineaId, sitioId: l.sitioId, poNro: l.poNroLinea || (s ? s.poNro : ''),
+    clienteId: l.clienteId, pct: l.pct, monto: l.monto, fecha: hoy()
+  });
+  actualizarBannerSolicitudes();
+  renderSeguimiento();
+  toast(`${l.sitioId} ${l.pct}% agregado a solicitudes pendientes.`);
 }
-async function guardarFactura() {
-  const lineaId = document.getElementById('fac-idx').value;
-  const fecha   = document.getElementById('fac-fecha').value;
-  const numero  = document.getElementById('fac-numero').value.trim();
-  if (!fecha)  return alert('Ingresá la fecha de facturación.');
-  if (!numero) return alert('Ingresá el N° de factura.');
-  const linea = lineas.find(l => l.id === lineaId);
-  if (!linea) return alert('Línea no encontrada.');
+
+function actualizarBannerSolicitudes() {
+  const banner = document.getElementById('banner-solicitudes');
+  const n = _solPendientes.length;
+  if (n === 0) { banner.classList.remove('visible'); return; }
+  document.getElementById('banner-sol-count').textContent = n;
+  document.getElementById('banner-sol-plural').textContent  = n === 1 ? '' : 'es';
+  document.getElementById('banner-sol-plural2').textContent = n === 1 ? '' : 's';
+  banner.classList.add('visible');
+}
+
+function abrirConfirmarSolicitudes() {
+  const resumen = document.getElementById('sol-resumen');
+  resumen.innerHTML = _solPendientes.map(p => {
+    const cli = getCli(p.clienteId);
+    return `<div style="display:grid;grid-template-columns:auto 1fr auto auto auto auto;align-items:center;gap:10px;padding:11px 18px;border-bottom:1px solid rgba(200,205,220,0.2);font-size:13px;" id="sol-row-${p.lineaId}">
+      ${cli ? dot(cli.color) : ''}
+      <div>
+        <span style="font-weight:700;">${p.sitioId}</span>
+        <span style="color:var(--text-light);font-size:12px;margin-left:6px;">${p.poNro || ''}</span>
+      </div>
+      <span class="badge badge-blue">${p.pct}%</span>
+      <span style="font-weight:700;min-width:90px;text-align:right;">${fmt(Math.round(p.monto))}</span>
+      <input type="date" value="${p.fecha}"
+        onchange="_solPendientes.find(x=>x.lineaId==='${p.lineaId}').fecha=this.value"
+        style="border:1px solid rgba(200,205,220,0.5);border-radius:8px;padding:5px 8px;font-size:12px;background:rgba(255,255,255,0.7);color:var(--text-dark);min-width:130px;" />
+      <button onclick="quitarDeSolCola('${p.lineaId}')" title="Quitar"
+        style="background:none;border:none;cursor:pointer;color:rgba(248,113,113,0.5);font-size:14px;padding:0 4px;"
+        onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(248,113,113,0.5)'">✕</button>
+    </div>`;
+  }).join('');
+  document.getElementById('modal-confirmar-solicitudes').classList.add('open');
+}
+
+function quitarDeSolCola(lineaId) {
+  _solPendientes = _solPendientes.filter(p => p.lineaId !== lineaId);
+  actualizarBannerSolicitudes();
+  if (_solPendientes.length === 0) { cerrarModal(); renderSeguimiento(); return; }
+  abrirConfirmarSolicitudes();
+}
+
+async function ejecutarSolicitudes() {
+  if (!_solPendientes.length) return;
+  // Validar que todas tengan fecha
+  const sinFecha = _solPendientes.find(p => !p.fecha);
+  if (sinFecha) return toast('Todas las líneas deben tener fecha de solicitud.', 'err');
+  cerrarModal();
   setLoading(true);
-  try {
-    await apiPost('UPDATE', 'FACTURACION', { FECHA_FACTURA: fecha, NRO_FACTURA: numero, ESTADO: 'Facturado' }, lineaId);
-    linea.fechaFactura = fecha;
-    linea.nroFactura   = numero;
-    linea.estado       = 'Facturado';
-    cerrarModal(); renderSeguimiento(); actualizarDashboard(); actualizarBadge();
-    toast('Factura registrada ✓');
-  } catch(e) { toast('Error: ' + e.message, 'err'); }
-  finally { setLoading(false); }
+  const pendientes = [..._solPendientes];
+  let ok = 0, err = 0;
+  await Promise.all(pendientes.map(p =>
+    apiPost('UPDATE', 'FACTURACION', { FECHA_SOLICITUD: p.fecha, ESTADO: 'Solicitado' }, p.lineaId)
+      .then(() => {
+        const l = lineas.find(x => x.id === p.lineaId);
+        if (l) { l.fechaSolicitud = p.fecha; l.estado = 'Solicitado'; }
+        ok++;
+      }).catch(() => err++)
+  ));
+  _solPendientes = err > 0 ? _solPendientes.slice(ok) : [];
+  actualizarBannerSolicitudes();
+  renderSeguimiento(); actualizarDashboard(); actualizarBadge();
+  setLoading(false);
+  toast(err === 0 ? `${ok} solicitud${ok!==1?'es':''} confirmada${ok!==1?'s':''} ✓` : `${ok} OK, ${err} con error.`, err > 0 ? 'err' : 'ok');
+}
+
+function descartarSolicitudes() {
+  if (!confirm(`¿Descartás las ${_solPendientes.length} solicitud(es) pendientes?`)) return;
+  _solPendientes = [];
+  actualizarBannerSolicitudes();
+  renderSeguimiento();
+}
+
+// ═══════════════════════════════════════════════════════
+//  COLA DE FACTURAS
+// ═══════════════════════════════════════════════════════
+let _facPendientes = []; // { lineaId, sitioId, poNro, clienteId, pct, monto, fecha, nroFactura }
+
+function abrirModalFactura(lineaId) {
+  const l = lineas.find(x => x.id === lineaId);
+  if (!l) return;
+  if (_facPendientes.find(p => p.lineaId === lineaId)) {
+    return toast('Esta línea ya está en la cola de facturas.', 'err');
+  }
+  const s = sitios.find(x => x.id === l.sitioId && (!l.poNroLinea || x.poNro === l.poNroLinea));
+  _facPendientes.push({
+    lineaId, sitioId: l.sitioId, poNro: l.poNroLinea || (s ? s.poNro : ''),
+    clienteId: l.clienteId, pct: l.pct, monto: l.monto, fecha: hoy(), nroFactura: ''
+  });
+  actualizarBannerFacturas();
+  renderSeguimiento();
+  toast(`${l.sitioId} ${l.pct}% agregado a facturas pendientes.`);
+}
+
+function actualizarBannerFacturas() {
+  const banner = document.getElementById('banner-facturas');
+  const n = _facPendientes.length;
+  if (n === 0) { banner.classList.remove('visible'); return; }
+  document.getElementById('banner-fac-count').textContent = n;
+  document.getElementById('banner-fac-plural').textContent  = n === 1 ? '' : 's';
+  document.getElementById('banner-fac-plural2').textContent = n === 1 ? '' : 's';
+  banner.classList.add('visible');
+}
+
+function abrirConfirmarFacturas() {
+  const resumen = document.getElementById('fac-resumen');
+  resumen.innerHTML = _facPendientes.map(p => {
+    const cli = getCli(p.clienteId);
+    return `<div style="display:grid;grid-template-columns:auto 1fr auto auto auto auto auto;align-items:center;gap:10px;padding:11px 18px;border-bottom:1px solid rgba(200,205,220,0.2);font-size:13px;" id="fac-row-${p.lineaId}">
+      ${cli ? dot(cli.color) : ''}
+      <div>
+        <span style="font-weight:700;">${p.sitioId}</span>
+        <span style="color:var(--text-light);font-size:12px;margin-left:6px;">${p.poNro || ''}</span>
+      </div>
+      <span class="badge badge-blue">${p.pct}%</span>
+      <span style="font-weight:700;min-width:90px;text-align:right;">${fmt(Math.round(p.monto))}</span>
+      <input type="date" value="${p.fecha}"
+        onchange="_facPendientes.find(x=>x.lineaId==='${p.lineaId}').fecha=this.value"
+        style="border:1px solid rgba(200,205,220,0.5);border-radius:8px;padding:5px 8px;font-size:12px;background:rgba(255,255,255,0.7);color:var(--text-dark);min-width:130px;" />
+      <input type="text" placeholder="N° factura *" value="${p.nroFactura}"
+        onchange="_facPendientes.find(x=>x.lineaId==='${p.lineaId}').nroFactura=this.value.trim()"
+        style="border:1px solid rgba(200,205,220,0.5);border-radius:8px;padding:5px 8px;font-size:12px;background:rgba(255,255,255,0.7);color:var(--text-dark);min-width:140px;" />
+      <button onclick="quitarDeFacCola('${p.lineaId}')" title="Quitar"
+        style="background:none;border:none;cursor:pointer;color:rgba(248,113,113,0.5);font-size:14px;padding:0 4px;"
+        onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(248,113,113,0.5)'">✕</button>
+    </div>`;
+  }).join('');
+  document.getElementById('modal-confirmar-facturas').classList.add('open');
+}
+
+function quitarDeFacCola(lineaId) {
+  _facPendientes = _facPendientes.filter(p => p.lineaId !== lineaId);
+  actualizarBannerFacturas();
+  if (_facPendientes.length === 0) { cerrarModal(); renderSeguimiento(); return; }
+  abrirConfirmarFacturas();
+}
+
+async function ejecutarFacturas() {
+  if (!_facPendientes.length) return;
+  const sinFecha   = _facPendientes.find(p => !p.fecha);
+  const sinFactura = _facPendientes.find(p => !p.nroFactura);
+  if (sinFecha)   return toast('Todas las líneas deben tener fecha de facturación.', 'err');
+  if (sinFactura) return toast('Todas las líneas deben tener N° de factura.', 'err');
+  cerrarModal();
+  setLoading(true);
+  const pendientes = [..._facPendientes];
+  let ok = 0, err = 0;
+  await Promise.all(pendientes.map(p =>
+    apiPost('UPDATE', 'FACTURACION', { FECHA_FACTURA: p.fecha, NRO_FACTURA: p.nroFactura, ESTADO: 'Facturado' }, p.lineaId)
+      .then(() => {
+        const l = lineas.find(x => x.id === p.lineaId);
+        if (l) { l.fechaFactura = p.fecha; l.nroFactura = p.nroFactura; l.estado = 'Facturado'; }
+        ok++;
+      }).catch(() => err++)
+  ));
+  _facPendientes = err > 0 ? _facPendientes.slice(ok) : [];
+  actualizarBannerFacturas();
+  renderSeguimiento(); actualizarDashboard(); actualizarBadge();
+  setLoading(false);
+  toast(err === 0 ? `${ok} factura${ok!==1?'s':''} confirmada${ok!==1?'s':''} ✓` : `${ok} OK, ${err} con error.`, err > 0 ? 'err' : 'ok');
+}
+
+function descartarFacturas() {
+  if (!confirm(`¿Descartás las ${_facPendientes.length} factura(s) pendientes?`)) return;
+  _facPendientes = [];
+  actualizarBannerFacturas();
+  renderSeguimiento();
 }
 
 function cerrarModal() {
