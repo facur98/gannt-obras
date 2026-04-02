@@ -1274,19 +1274,18 @@ async function apiPost(action, sheet, payload = {}, id = '') {
   return data;
 }
 
-// Muestra un toast de feedback
 function toast(msg, tipo = 'ok') {
   let t = document.getElementById('toast');
   if (!t) {
     t = document.createElement('div');
     t.id = 'toast';
-    t.style.cssText = 'position:fixed;bottom:28px;right:28px;z-index:9999;padding:12px 22px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,0.15);transition:opacity 0.4s;backdrop-filter:blur(12px);';
+    t.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;padding:14px 28px;border-radius:14px;font-size:14px;font-weight:600;box-shadow:0 12px 36px rgba(0,0,0,0.2);transition:opacity 0.4s;backdrop-filter:blur(12px);text-align:center;max-width:380px;pointer-events:none;';
     document.body.appendChild(t);
   }
   t.textContent = msg;
-  t.style.background = tipo === 'ok'  ? 'rgba(45,212,191,0.92)'  :
-                        tipo === 'err' ? 'rgba(248,113,113,0.92)' :
-                                         'rgba(79,128,255,0.92)';
+  t.style.background = tipo === 'ok'  ? 'rgba(45,212,191,0.95)'  :
+                        tipo === 'err' ? 'rgba(248,113,113,0.95)' :
+                                         'rgba(79,128,255,0.95)';
   t.style.color   = '#fff';
   t.style.opacity = '1';
   clearTimeout(t._timer);
@@ -1370,11 +1369,12 @@ async function cargarTodo() {
 
     sitios = (data.sitios || []).map(r => ({
       id:        get(r, 'ID'),
+      uid:       get(r, 'ID') + '||' + get(r, 'PO_NRO'), // clave única interna
       localidad: get(r, 'LOCALIDAD'),
       clienteId: get(r, 'CLIENTE_ID'),
       concepto:  get(r, 'CONCEPTO'),
       poNro:     get(r, 'PO_NRO'),
-      po:        parseFloat(get(r, 'PO_TOTAL')) || 0,
+      po:        parseFloat(String(get(r, 'PO_TOTAL')).replace(/\./g,'').replace(',','.')) || 0,
       obs:       get(r, 'OBSERVACION')
     })).filter(s => s.id.trim() !== '');
 
@@ -1463,7 +1463,7 @@ function fechaCorta(f) {
   const [y,m,d] = f.split('-'); return d+'/'+m+'/'+y;
 }
 const getCli  = id => clientes.find(c => c.id === id);
-const getSit  = id => sitios.find(s => s.id === id);
+const getSit  = uid => sitios.find(s => s.uid === uid) || sitios.find(s => s.id === uid);
 const dot     = color => `<span class="client-dot" style="background:${color}"></span>`;
 
 /* ══ CLIENTES ══ */
@@ -1612,10 +1612,10 @@ function cerrarModalPoDuplicada() {
   // Dejar campo marcado en rojo para guiar al usuario
 }
 
-function abrirEditarSitio(sitioId) {
-  const s = getSit(sitioId);
+function abrirEditarSitio(uid) {
+  const s = getSit(uid);
   if (!s) return;
-  document.getElementById('edit-sit-original-id').value = s.id;
+  document.getElementById('edit-sit-original-id').value = uid; // guardamos uid
   document.getElementById('edit-sit-id').value         = s.id;
   document.getElementById('edit-sit-localidad').value  = s.localidad;
   document.getElementById('edit-sit-concepto').value   = s.concepto;
@@ -1627,8 +1627,13 @@ function abrirEditarSitio(sitioId) {
   clientes.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.id}</option>`);
   sel.value = s.clienteId;
 
-  // Detectar líneas vinculadas en seguimiento
-  const vinculadas = lineas.filter(l => l.sitioId === s.id);
+  // Detectar líneas vinculadas — solo del sitio exacto
+  const sitiosConMismoId = sitios.filter(x => x.id === s.id);
+  const vinculadas = lineas.filter(l => {
+    if (l.sitioId !== s.id) return false;
+    if (sitiosConMismoId.length === 1) return true;
+    return Math.abs(l.monto - s.po * l.pct / 100) < 1;
+  });
   const avisoEl  = document.getElementById('edit-sit-vinculos');
   const detEl    = document.getElementById('edit-sit-vinculos-detalle');
   const btnGuard = document.getElementById('btn-guardar-edicion-sitio');
@@ -1655,7 +1660,9 @@ function abrirEditarSitio(sitioId) {
 }
 
 async function guardarEdicionSitio() {
-  const origId = document.getElementById('edit-sit-original-id').value;
+  const uid    = document.getElementById('edit-sit-original-id').value;
+  const s      = getSit(uid);
+  if (!s) return;
   const loc    = document.getElementById('edit-sit-localidad').value;
   const cid    = document.getElementById('edit-sit-cliente').value;
   const con    = document.getElementById('edit-sit-concepto').value;
@@ -1664,29 +1671,42 @@ async function guardarEdicionSitio() {
   const obs    = document.getElementById('edit-sit-obs').value.trim();
   if (!loc) return alert('Seleccioná una provincia.');
   if (!cid) return alert('Seleccioná un cliente.');
-  // Validar PO duplicada en otro sitio
-  if (poNro) {
-    const dup = sitios.find(s => s.id !== origId && s.poNro && s.poNro.trim() === poNro);
-    if (dup) return alert(`PO "${poNro}" ya existe en el sitio ${dup.id}`);
-  }
   setLoading(true);
   try {
     await apiPost('UPDATE', 'SITIOS', {
       LOCALIDAD: loc, CLIENTE_ID: cid, CONCEPTO: con,
       PO_NRO: poNro, PO_TOTAL: po, OBSERVACION: obs
-    }, origId);
-    const s = getSit(origId);
-    if (s) { s.localidad = loc; s.clienteId = cid; s.concepto = con; s.poNro = poNro; s.po = po; s.obs = obs; }
+    }, s.id);
+    // Actualizar en memoria y regenerar uid
+    s.localidad = loc; s.clienteId = cid; s.concepto = con;
+    s.poNro = poNro; s.po = po; s.obs = obs;
+    s.uid = s.id + '||' + poNro;
     cerrarModal(); renderSitios(); renderClientes(); actualizarDashboard();
     toast('Sitio actualizado ✓');
   } catch(e) { toast('Error: ' + e.message, 'err'); }
   finally { setLoading(false); }
 }
 
-function getSitStatus(sitioId) {
-  // Combina líneas confirmadas + cola local pendiente
-  const ls  = lineas.filter(l => l.sitioId === sitioId);
-  const lp  = (_proyPendientes || []).filter(p => p.sitioId === sitioId);
+function getSitStatus(uid) {
+  // uid = "ID||PO_NRO". Lineas en Sheets usan SITIO_ID = ID (sin PO).
+  // Para distinguir sitios con mismo ID, cruzamos también por poNro en la línea vs el sitio.
+  const s   = getSit(uid);
+  if (!s) return { label: 'Sin asignar', color: 'rgba(150,160,190,0.15)', text: '#9aa0b8' };
+
+  // Lineas confirmadas que pertenecen a este sitio exacto (mismo ID y mismo poNro)
+  const ls = lineas.filter(l => {
+    if (l.sitioId !== s.id) return false;
+    // Si hay múltiples sitios con el mismo ID, cruzar por poNro guardado en la línea
+    // Las líneas no guardan poNro directamente, así que usamos el monto para discriminar
+    // La mejor estrategia: si solo hay 1 sitio con ese ID, no hay ambigüedad
+    const sitiosConMismoId = sitios.filter(x => x.id === s.id);
+    if (sitiosConMismoId.length === 1) return true;
+    // Varios sitios con mismo ID: cruzar por monto aproximado (pct * poTotal / 100)
+    const montoEsperado = s.po * l.pct / 100;
+    return Math.abs(l.monto - montoEsperado) < 1;
+  });
+
+  const lp = (_proyPendientes || []).filter(p => p.sitioId === uid);
   const all = [...ls, ...lp];
 
   if (!all.length) return { label: 'Sin asignar', color: 'rgba(150,160,190,0.15)', text: '#9aa0b8' };
@@ -1695,21 +1715,15 @@ function getSitStatus(sitioId) {
   const solicitadas = ls.filter(l => l.estado === 'Solicitado');
   const proyectadas = [...ls.filter(l => l.estado === 'Proyectado'), ...lp];
   const pctFac = facturadas.reduce((a,l) => a + l.pct, 0);
-  const pendCola = lp.length;
 
-  if (facturadas.length && !solicitadas.length && !proyectadas.length) {
+  if (facturadas.length && !solicitadas.length && !proyectadas.length)
     return { label: `Facturado ${pctFac}%`, color: 'rgba(45,212,191,0.12)', text: '#0d9488' };
-  }
-  if (facturadas.length) {
+  if (facturadas.length)
     return { label: `${pctFac}% Facturado`, color: 'rgba(45,212,191,0.12)', text: '#0d9488' };
-  }
-  if (solicitadas.length) {
+  if (solicitadas.length)
     return { label: 'Solicitado', color: 'rgba(251,191,36,0.12)', text: '#b45309' };
-  }
-  if (pendCola > 0 && ls.filter(l=>l.estado==='Proyectado').length === 0) {
-    // Solo en cola local, aún no guardado
+  if (lp.length > 0 && ls.filter(l=>l.estado==='Proyectado').length === 0)
     return { label: '⏳ En cola', color: 'rgba(167,139,250,0.12)', text: '#7c3aed' };
-  }
   return { label: 'Proyectado', color: 'rgba(79,128,255,0.12)', text: '#3a6bf0' };
 }
 
@@ -1764,9 +1778,9 @@ function renderSitios(filtro = '', filtros = null) {
   tbody.innerHTML = lista.map(s => {
     const cli = getCli(s.clienteId);
     const cb  = s.concepto === 'Básico' ? 'badge-blue' : 'badge-violet';
-    const st  = getSitStatus(s.id);
+    const st  = getSitStatus(s.uid);
     return `<tr
-      onmouseenter="showSitTooltip(event,'${s.id}')"
+      onmouseenter="showSitTooltip(event,'${s.uid}')"
       onmousemove="moveSitTooltip(event)"
       onmouseleave="hideSitTooltip()">
       <td style="font-weight:600;cursor:default;">${s.id}</td>
@@ -1778,9 +1792,9 @@ function renderSitios(filtro = '', filtros = null) {
       <td><span style="display:inline-block;padding:4px 11px;border-radius:20px;font-size:12px;font-weight:600;background:${st.color};color:${st.text};">${st.label}</span></td>
       <td style="color:var(--text-mid);font-size:12px;">${s.obs||'—'}</td>
       <td><span style="display:flex;align-items:center;justify-content:center;gap:6px;">
-        <button class="btn btn-glass btn-sm" onclick="abrirProyectarSitio('${s.id}')" title="Proyectar en seguimiento" style="color:var(--accent-blue);font-size:11px;font-weight:700;padding:5px 9px;">+Seg</button>
-        <button class="btn btn-glass btn-sm" onclick="abrirEditarSitio('${s.id}')" title="Editar">✏️</button>
-        <button class="btn btn-rose btn-sm" onclick="eliminarSitio('${s.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+        <button class="btn btn-glass btn-sm" onclick="abrirProyectarSitio('${s.uid}')" title="Proyectar en seguimiento" style="color:var(--accent-blue);font-size:11px;font-weight:700;padding:5px 9px;">+Seg</button>
+        <button class="btn btn-glass btn-sm" onclick="abrirEditarSitio('${s.uid}')" title="Editar">✏️</button>
+        <button class="btn btn-rose btn-sm" onclick="eliminarSitio('${s.uid}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
       </span></td>
     </tr>`;
   }).join('');
@@ -1791,12 +1805,16 @@ function aplicarFiltrosSitios() {
   renderSitios();
 }
 function filtrarSitios(v) { renderSitios(v); }
-async function eliminarSitio(id) {
-  if (!confirm('¿Eliminar sitio '+id+'?')) return;
+async function eliminarSitio(uid) {
+  const s = getSit(uid);
+  if (!s) return;
+  if (!confirm(`¿Eliminar sitio ${s.id} (PO: ${s.poNro || '—'})?`)) return;
   setLoading(true);
   try {
-    await apiPost('DELETE', 'SITIOS', {}, id);
-    sitios = sitios.filter(s => s.id !== id);
+    // El DELETE en Sheets busca por la columna ID — para sitios con mismo ID
+    // necesitamos borrar la fila exacta. Por ahora enviamos el ID original.
+    await apiPost('DELETE', 'SITIOS', {}, s.id);
+    sitios = sitios.filter(x => x.uid !== uid);
     renderSitios(); renderClientes(); actualizarDashboard();
     toast('Sitio eliminado');
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -1804,13 +1822,17 @@ async function eliminarSitio(id) {
 }
 
 /* ══ PROYECTAR SITIO DESDE TABLA SITIOS ══ */
-function abrirProyectarSitio(sitioId) {
-  const s = getSit(sitioId);
+function abrirProyectarSitio(uid) {
+  const s = getSit(uid);
   if (!s) return;
 
-  // Calcular % disponible
-  const pctUsado = lineas.filter(l => l.sitioId === sitioId).reduce((a,l) => a + l.pct, 0);
-  const pctDisp  = 100 - pctUsado;
+  const pctUsado = lineas.filter(l => {
+    if (l.sitioId !== s.id) return false;
+    const iguales = sitios.filter(x => x.id === s.id);
+    if (iguales.length === 1) return true;
+    return Math.abs(l.monto - s.po * l.pct / 100) < 1;
+  }).reduce((a,l) => a + l.pct, 0);
+  const pctDisp = 100 - pctUsado;
 
   if (pctDisp <= 0) {
     toast('Este sitio ya tiene el 100% asignado en seguimiento.', 'err');
@@ -1820,7 +1842,7 @@ function abrirProyectarSitio(sitioId) {
   // Poblar info del sitio
   const cli = getCli(s.clienteId);
   document.getElementById('proy-sitio-id').textContent       = s.id;
-  document.getElementById('proy-sitio-id-hidden').value      = s.id;
+  document.getElementById('proy-sitio-id-hidden').value      = uid;
   document.getElementById('proy-sitio-cliente').innerHTML    = cli ? `${dot(cli.color)} ${s.clienteId}` : s.clienteId;
   document.getElementById('proy-sitio-po-nro').textContent   = s.poNro || '—';
   document.getElementById('proy-sitio-po-total').textContent = s.po ? fmt(s.po) : '—';
@@ -2729,11 +2751,16 @@ const chartDonut2Inst = new Chart(document.getElementById('chartDonut2'), {
 /* ══ TOOLTIP SITIOS — div global ══ */
 const _tip = () => document.getElementById('sit-global-tooltip');
 
-function showSitTooltip(event, sitioId) {
-  const s = getSit(sitioId);
+function showSitTooltip(event, uid) {
+  const s = getSit(uid);
   if (!s) return;
-  const lineasSitio = lineas.filter(l => l.sitioId === sitioId);
-  let html = `<div style="color:#7eb8ff;font-weight:700;margin-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:.7px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:6px;">📍 ${sitioId} — Seguimiento</div>`;
+  const sitiosConMismoId = sitios.filter(x => x.id === s.id);
+  const lineasSitio = lineas.filter(l => {
+    if (l.sitioId !== s.id) return false;
+    if (sitiosConMismoId.length === 1) return true;
+    return Math.abs(l.monto - s.po * l.pct / 100) < 1;
+  });
+  let html = `<div style="color:#7eb8ff;font-weight:700;margin-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:.7px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:6px;">📍 ${s.id}${sitiosConMismoId.length > 1 ? ' · PO '+s.poNro : ''} — Seguimiento</div>`;
   if (!lineasSitio.length) {
     html += `<span style="color:#94a3b8;font-style:italic;">Sin líneas en seguimiento</span>`;
   } else {
