@@ -768,8 +768,9 @@
           <thead>
             <tr>
               <th style="text-align:center;width:32px;"></th>
-              <th style="text-align:center;">Cliente</th>
               <th style="text-align:center;">Sitio</th>
+              <th style="text-align:center;">N° PO</th>
+              <th style="text-align:center;">Cliente</th>
               <th style="text-align:center;">%</th>
               <th style="text-align:center;">Monto</th>
               <th style="text-align:center;">Mes proy.</th>
@@ -781,7 +782,7 @@
             </tr>
           </thead>
           <tbody id="tabla-seguimiento">
-            <tr><td colspan="10"><div class="empty-state"><span class="es-icon">🧾</span><p>Sin líneas registradas. Usá "Nueva línea" para comenzar.</p></div></td></tr>
+            <tr><td colspan="12"><div class="empty-state"><span class="es-icon">🧾</span><p>Sin líneas registradas. Usá "Nueva línea" para comenzar.</p></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -841,7 +842,7 @@
 
 <!-- MODAL — Confirmar traspaso a seguimiento -->
 <div class="modal-overlay" id="modal-confirmar-traspaso">
-  <div class="modal" style="max-width:560px;">
+  <div class="modal" style="max-width:720px;width:95vw;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
       <div class="modal-title" style="margin:0;">Confirmar traspaso a Seguimiento</div>
       <button onclick="cerrarModal()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-light);line-height:1;">✕</button>
@@ -849,7 +850,7 @@
     <div style="font-size:13px;color:var(--text-mid);margin-bottom:16px;">
       Se van a crear las siguientes líneas en Seguimiento:
     </div>
-    <div id="traspaso-resumen" style="background:rgba(79,128,255,0.05);border:1px solid rgba(79,128,255,0.15);border-radius:var(--radius-sm);padding:4px 0;margin-bottom:22px;max-height:280px;overflow-y:auto;"></div>
+    <div id="traspaso-resumen" style="background:rgba(79,128,255,0.05);border:1px solid rgba(79,128,255,0.15);border-radius:var(--radius-sm);padding:4px 0;margin-bottom:22px;max-height:380px;overflow-y:auto;"></div>
     <div class="modal-footer">
       <button class="btn btn-glass" onclick="cerrarModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="ejecutarTraspaso()">Confirmar traspaso</button>
@@ -1374,7 +1375,7 @@ async function cargarTodo() {
       clienteId: get(r, 'CLIENTE_ID'),
       concepto:  get(r, 'CONCEPTO'),
       poNro:     get(r, 'PO_NRO'),
-      po:        parseFloat(String(get(r, 'PO_TOTAL')).replace(/\./g,'').replace(',','.')) || 0,
+      po:        Math.round(parseFloat(String(get(r, 'PO_TOTAL')).replace(/\$/g,'').replace(/\./g,'').replace(',','.').trim()) || 0),
       obs:       get(r, 'OBSERVACION')
     })).filter(s => s.id.trim() !== '');
 
@@ -1383,7 +1384,7 @@ async function cargarTodo() {
       sitioId:        get(r, 'SITIO_ID'),
       clienteId:      get(r, 'CLIENTE_ID'),
       pct:            parseInt(get(r, 'PCT'))     || 0,
-      monto:          parseFloat(String(get(r, 'MONTO')).replace(/\./g,'').replace(',','.')) || 0,
+      monto:          Math.round(parseFloat(String(get(r, 'MONTO')).replace(/\$/g,'').replace(/\./g,'').replace(',','.').trim()) || 0),
       mes:            get(r, 'MES'),
       fechaSolicitud: get(r, 'FECHA_SOLICITUD'),
       fechaFactura:   get(r, 'FECHA_FACTURA'),
@@ -1402,7 +1403,7 @@ async function cargarTodo() {
     renderSitios();
     renderSeguimiento();
 
-    toast('Datos cargados ✓ (' + clientes.length + ' clientes)', 'ok');
+    // toast silencioso al inicio — no mostrar aviso de carga
   } catch (err) {
     toast('Error al cargar: ' + err.message, 'err');
     console.error('ERROR cargarTodo:', err);
@@ -1874,7 +1875,7 @@ function calcularMontoProy() {
   const sitioId = document.getElementById('proy-sitio-id-hidden').value;
   const s   = getSit(sitioId);
   const pct = parseInt(document.getElementById('proy-pct').value) || 0;
-  document.getElementById('proy-monto').value = (s && s.po && pct) ? fmt(s.po * pct / 100) : '—';
+  document.getElementById('proy-monto').value = (s && s.po && pct) ? fmt(Math.round(s.po * pct / 100)) : '—';
 
   // Mostrar/ocultar sección restante
   const pctUsado = lineas.filter(l => l.sitioId === sitioId).reduce((a,l) => a + l.pct, 0);
@@ -1930,7 +1931,7 @@ function confirmarProyectarSitio() {
 
   const s     = getSit(sitioId);
   const mes   = `${mesA}-${mesM}`;
-  const monto = (s && s.po) ? s.po * pct / 100 : 0;
+  const monto = (s && s.po) ? Math.round(s.po * pct / 100) : 0;
 
   // Verificar duplicado en cola
   if (_proyPendientes.find(p => p.sitioId === sitioId && p.pct === pct && p.mes === mes)) {
@@ -1954,7 +1955,7 @@ function confirmarProyectarSitio() {
     const pctResto = (100 - pctUsado) - pct;
     if (pctResto > 0) {
       const rMes   = `${rMesA}-${rMesM}`;
-      const rMonto = (s && s.po) ? s.po * pctResto / 100 : 0;
+      const rMonto = (s && s.po) ? Math.round(s.po * pctResto / 100) : 0;
       items.push({
         id: nuevoId('FAC'), sitioId, clienteId: s ? s.clienteId : '',
         pct: pctResto, monto: rMonto, mes: rMes,
@@ -1992,16 +1993,18 @@ function abrirConfirmarTraspaso() {
   resumen.innerHTML = _proyPendientes.map(p => {
     const cli = getCli(p.clienteId);
     const s   = getSit(p.sitioId);
-    return `<div style="display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid rgba(200,205,220,0.2);font-size:13px;">
+    // Mostrar "ID - PO_NRO" en lugar del uid crudo
+    const sitioLabel = s ? `<span style="font-weight:700;">${s.id}</span><span style="color:var(--text-light);margin:0 5px;">·</span><span style="font-size:12px;color:var(--text-mid);">${s.poNro||''}</span>` : `<span style="font-weight:700;">${p.sitioId}</span>`;
+    return `<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid rgba(200,205,220,0.2);font-size:13px;">
       ${cli ? dot(cli.color) : ''}
-      <div style="flex:1;">
-        <span style="font-weight:700;">${p.sitioId}</span>
-        <span style="color:var(--text-light);margin-left:8px;">${p.clienteId}</span>
+      <div style="flex:1;min-width:0;">
+        <div>${sitioLabel}</div>
+        <div style="font-size:11px;color:var(--text-light);margin-top:2px;">${p.clienteId}</div>
       </div>
-      <span class="badge badge-blue">${p.pct}%</span>
-      <span style="font-weight:700;min-width:90px;text-align:right;">${fmt(p.monto)}</span>
-      <span style="color:var(--text-light);min-width:80px;text-align:right;">${mesLabel(p.mes)}</span>
-      <button onclick="quitarDeCola('${p.id}')" title="Quitar" style="background:none;border:none;cursor:pointer;color:rgba(248,113,113,0.5);font-size:14px;padding:0 4px;"
+      <span class="badge badge-blue" style="flex-shrink:0;">${p.pct}%</span>
+      <span style="font-weight:700;min-width:100px;text-align:right;flex-shrink:0;">${fmt(p.monto)}</span>
+      <span style="color:var(--text-light);min-width:75px;text-align:right;flex-shrink:0;">${mesLabel(p.mes)}</span>
+      <button onclick="quitarDeCola('${p.id}')" title="Quitar" style="background:none;border:none;cursor:pointer;color:rgba(248,113,113,0.5);font-size:14px;padding:0 4px;flex-shrink:0;"
         onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(248,113,113,0.5)'">✕</button>
     </div>`;
   }).join('');
@@ -2214,7 +2217,7 @@ function onSitioChange() {
 function calcularMontoLinea() {
   const sit = getSit(document.getElementById('nl-sitio').value);
   const pct = parseInt(document.getElementById('nl-pct').value) || 0;
-  document.getElementById('nl-monto').value = (sit && sit.po && pct) ? fmt(sit.po * pct / 100) : '';
+  document.getElementById('nl-monto').value = (sit && sit.po && pct) ? fmt(Math.round(sit.po * pct / 100)) : '';
 }
 
 async function guardarNuevaLinea() {
@@ -2227,7 +2230,7 @@ async function guardarNuevaLinea() {
   if (!mesM || !mesA) return alert('Seleccioná mes y año.');
   const mes   = `${mesA}-${mesM}`;
   const sit   = getSit(sitId);
-  const monto = (sit && sit.po) ? sit.po * pct / 100 : 0;
+  const monto = (sit && sit.po) ? Math.round(sit.po * pct / 100) : 0;
   const id    = nuevoId('FAC');
   setLoading(true);
   try {
@@ -2267,7 +2270,7 @@ function renderSeguimiento() {
   if (filtroSitioSeg)   lista = lista.filter(l => l.sitioId   === filtroSitioSeg);
   if (filtroEstadoSeg)  lista = lista.filter(l => l.estado    === filtroEstadoSeg);
 
-  if (!lista.length) { tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><span class="es-icon">🧾</span><p>Sin líneas registradas.</p></div></td></tr>`; return; }
+  if (!lista.length) { tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state"><span class="es-icon">🧾</span><p>Sin líneas registradas.</p></div></td></tr>`; return; }
 
   const tc = 'text-align:center;vertical-align:middle;';
   tbody.innerHTML = lista.map(l => {
@@ -2275,6 +2278,20 @@ function renderSeguimiento() {
     const clienteCell = cli
       ? `<span style="display:flex;align-items:center;justify-content:center;gap:6px;">${dot(cli.color)}${l.clienteId}</span>`
       : l.clienteId;
+
+    // Separar ID de sitio y PO del sitioId (puede venir como "KS160||6101HG..." o solo "KS160")
+    let sitioDisplay = l.sitioId;
+    let poDisplay = '—';
+    if (l.sitioId && l.sitioId.includes('||')) {
+      const parts = l.sitioId.split('||');
+      sitioDisplay = parts[0];
+      poDisplay = parts[1] || '—';
+    } else {
+      // Buscar PO en la tabla de sitios
+      const sMatch = sitios.find(s => s.id === l.sitioId);
+      if (sMatch) poDisplay = sMatch.poNro || '—';
+    }
+
     let badgeCls = 'badge-blue', accion = '';
     if (l.estado === 'Proyectado') {
       accion = `<button class="btn btn-amber btn-sm" onclick="abrirModalSolicitud('${l.id}')">Solicitar</button>`;
@@ -2285,16 +2302,19 @@ function renderSeguimiento() {
       badgeCls = 'badge-green';
       accion = `<span style="color:var(--accent-teal);font-size:12px;font-weight:600;">✓ Completo</span>`;
     }
+    // Redondear monto para display
+    const montoDisplay = l.monto ? fmt(Math.round(l.monto)) : '—';
     return `<tr>
       <td style="${tc}">
         <button onclick="abrirEliminarLinea('${l.id}')" title="Eliminar línea"
           style="background:none;border:none;cursor:pointer;color:rgba(248,113,113,0.55);font-size:14px;line-height:1;padding:2px 4px;border-radius:50%;transition:color .2s;"
           onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(248,113,113,0.55)'">✕</button>
       </td>
+      <td style="${tc}font-weight:600;">${sitioDisplay}</td>
+      <td style="${tc}font-size:12px;color:var(--text-mid);">${poDisplay}</td>
       <td style="${tc}">${clienteCell}</td>
-      <td style="${tc}font-weight:600;">${l.sitioId}</td>
       <td style="${tc}"><span class="badge badge-blue">${l.pct}%</span></td>
-      <td style="${tc}font-weight:600;">${l.monto ? fmt(l.monto) : '—'}</td>
+      <td style="${tc}font-weight:600;">${montoDisplay}</td>
       <td style="${tc}">${mesLabel(l.mes)}</td>
       <td style="${tc}">${fechaCorta(l.fechaSolicitud)}</td>
       <td style="${tc}">${fechaCorta(l.fechaFactura)}</td>
